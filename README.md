@@ -32,8 +32,7 @@ git version 2.25.1
 To start a development environment, install the dependencies and start the server.
 ```
 $ npm install
-[...]
-$ npm start
+$ npm run start
 ```
 
 ## Deployment
