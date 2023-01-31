@@ -41,8 +41,9 @@ $ npm start
 Deploy to github pages by using gh-pages package.
 ```
 $ npm run build
+$ npm run deploy
 ```
-This will create a branch `gh-pages` with the build files.
+This will push changes to the `gh-pages` branch.
 
 ## Additional Information
 
