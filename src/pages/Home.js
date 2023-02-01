@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
 
 function linearGradient(start, middle, end) {
 	return `linear-gradient(90deg, ${start} 0%, ${middle} 50%, ${end} 100%)`;
@@ -53,7 +52,7 @@ function Home() {
 			>
 				<h2 style={{ color: colorScheme.h, margin: "0" }}>🌍 Didas</h2>
 				<span style={{ color: colorScheme.text }}>
-					Student, not very bright league gamer, tf2 enjoyer
+					Student, not very bright league gamer, pokemon go enjoyer
 				</span>
 				<h3 style={{ color: colorScheme.h, marginBottom: "0" }}>
 					What I like doing
@@ -63,7 +62,7 @@ function Home() {
 						Pretending I know Linux 🗿
 					</li>
 					<li style={{ color: colorScheme.text }}>
-						Pretending I know Window (my main driver)
+						Pretending I know Windows (my main driver)
 					</li>
 					<li style={{ color: colorScheme.text }}>
 						Distributed systems, consensus is great for election
