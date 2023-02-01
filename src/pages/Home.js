@@ -63,7 +63,7 @@ function Home() {
 						Pretending I know Linux 🗿
 					</li>
 					<li style={{ color: colorScheme.text }}>
-						Pretending I know Window (my main driver)
+						Pretending I know Windows (my main driver)
 					</li>
 					<li style={{ color: colorScheme.text }}>
 						Distributed systems, consensus is great for election
