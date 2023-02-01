@@ -50,7 +50,7 @@ This will push changes to the `gh-pages` branch.
 
 * **Diogo Santos**
 
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
+See also the list of [contributors](https://github.com/DiogoSantoss/diogosantoss.github.io/contributors) who participated in this project.
 
 ### License
 
