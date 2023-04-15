@@ -52,20 +52,20 @@ function Home() {
 			>
 				<h2 style={{ color: colorScheme.h, margin: "0" }}>🌍 Didas</h2>
 				<span style={{ color: colorScheme.text }}>
-					Student, not very bright league gamer, pokemon go enjoyer
+					Student, aspiring software engineer
 				</span>
 				<h3 style={{ color: colorScheme.h, marginBottom: "0" }}>
 					What I like doing
 				</h3>
 				<ul style={{ margin: "0" }}>
 					<li style={{ color: colorScheme.text }}>
-						Pretending I know Linux 🗿
+						Pretending I know why my Arch broke 🗿
 					</li>
 					<li style={{ color: colorScheme.text }}>
-						Pretending I know Windows (my main driver)
+						Using WSL because it just works
 					</li>
 					<li style={{ color: colorScheme.text }}>
-						Distributed systems, consensus is great for election
+						Distributed systems and reading Lamport website
 					</li>
 					<li style={{ color: colorScheme.text }}>
 						Some security (iptables -P INPUT DROP is my main security defense)
