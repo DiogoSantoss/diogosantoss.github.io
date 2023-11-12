@@ -1,8 +1,8 @@
 import { Routes, Route } from "react-router-dom";
 import Gifs from "./components/Gifs";
+import WebRing from "./components/WebRing";
 import Header from "./components/Header";
 import Home from "./pages/Home";
-import Curriculum from "./pages/Curriculum";
 import Blog from "./pages/Blog";
 
 function App() {
@@ -13,7 +13,7 @@ function App() {
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "center",
-					height: "100vh",
+					paddingTop: "30px",
 					fontFamily: "Terminal, monospace",
 					flexFlow: "column",
 				}}
@@ -21,10 +21,10 @@ function App() {
 				<Header/>
 				<Routes>
 					<Route path="/" element={<Home />} />
-					<Route path="/curriculum" element={<Curriculum/>} />
 					<Route path="/blog" element={<Blog/>} />
 				</Routes>
 				<Gifs/>
+				<WebRing/>
 			</div>
 		</>
 	);

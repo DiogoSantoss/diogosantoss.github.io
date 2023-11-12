@@ -4,15 +4,15 @@ function Header() {
 	return (
 		<div>
 			<span style={{ color: "white" }}>
-				<Link to={"/"} style={{ color: "white" }}>
+				<Link to={"/"} style={{ color: "inherit", textDecoration: "none" }}>
 					home
 				</Link>
 				|
-				<Link to={"/curriculum"} style={{ color: "white" }}>
+				<a href="cv-diogo-santos.pdf" style={{ color: "inherit", textDecoration: "none" }}>
 					curriculum
-				</Link>
+				</a>
 				|
-				<Link to={"/blog"} style={{ color: "white" }}>
+				<Link to={"/blog"} style={{ color: "inherit", textDecoration: "none" }}>
 					blog
 				</Link>
 			</span>
