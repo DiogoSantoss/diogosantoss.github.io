@@ -1,1 +1,0 @@
-.rainbow{-webkit-animation:color-change 1s infinite;animation:color-change 1s infinite}@-webkit-keyframes color-change{0%{color:red}50%{color:blue}to{color:red}}@keyframes color-change{0%{color:red}50%{color:blue}to{color:red}}
