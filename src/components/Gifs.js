@@ -1,16 +1,18 @@
 function Gifs() {
+
+  const gifs = [
+    "bestviewedyour.gif",
+    "cdrom.gif",
+    "powered.gif",
+    "service.gif",
+    "archlinux.gif",
+  ]
+
   return (
-    <div>
-      <img
-        src="bestviewedyour.gif"
-        alt="bestviewedyour"
-        height="31"
-        width="88"
-      />
-      <img src="cdrom.gif" alt="cdrom" height="31" width="88" />
-      <img src="powered.gif" alt="powered" height="31" width="88" />
-      <img src="service.gif" alt="service" height="31" width="88" />
-      <img src="archlinux.gif" alt="archlinux" height="31" width="88" />
+    <div class="flex flex-wrap justify-center items-center">
+      {gifs.map((gif) => (
+        <img src={gif} alt={gif} class="h-31 w-88 mt-3" />
+      ))}
     </div>
   );
 }

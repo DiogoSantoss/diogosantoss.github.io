@@ -1,11 +1,17 @@
 function WebRing() {
   return (
-    <div style={{ marginTop: "10px", display: "flex", alignItems: "center" }}>
-      <button style={{ marginRight: "10px" }}>
-        <a href="https://espadeiro.pt">« Eduardo</a>
+    <div class="text-center text-white font-bold">
+      <button>
+        <a className="hover:underline" href="https://espadeiro.pt">
+          « Eduardo
+        </a>
       </button>
-      <span style={{ color: "#ffffff" }}>Webring friends</span>
-      <button style={{ marginLeft: "10px" }}>Vasco »</button>
+      <span className="mx-5">Webring</span>
+      <button>
+        <a className="hover:underline" href="">
+          Vasco »
+        </a>
+      </button>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import WebRing from "../components/WebRing";
+
 function Home() {
   useEffect(() => {
     const mad = [
@@ -21,144 +23,92 @@ function Home() {
     console.log(mad.join("\n"));
   }, []);
 
-  const colorScheme = {
-    //h: "#181c26",
-    h: "#ffffff",
-    text: "#ffffff",
-  };
+  const links = [
+    {
+      name: "microservices architecture deployed on GKE",
+      url: "https://github.com/DiogoSantoss/nvolopi",
+    },
+    {
+      name: "instrumentation of java applications in AWS",
+      url: "https://github.com/DiogoSantoss/cloud-computing-virtualization",
+    },
+    {
+      name: "secure infrastructure with JWT and 2FA",
+      url: "https://github.com/DiogoSantoss/2fa-stock-broker",
+    },
+    {
+      name: "state machine replication using QBFT",
+      url: "hhttps://github.com/DiogoSantoss/permissioned-blockchain-qbft",
+    },
+    {
+      name: "multi-paxos implementation",
+      url: "https://github.com/DiogoSantoss/fault-tolerant-bank",
+    },
+    {
+      name: "gossip architecture",
+      url: "https://github.com/DiogoSantoss/nvolopi",
+    },
+  ];
 
   return (
     <>
-      <div
-        style={{
-          backgroundColor: "#6d6d6d",
-          backgroundColor: "#242938",
-          boxShadow: "0 0 2px 2px grey",
-          borderRadius: "10px",
-          padding: "20px",
-          margin: "1vh",
-        }}
-      >
-        <h2 style={{ color: colorScheme.h, margin: "0" }}>🌍 Diogo Santos</h2>
-        <span style={{ color: colorScheme.text }}>
+      <div className="bg-githubDark text-white rounded-xl p-5 shadow-homeShadow">
+        <h1 className="font-bold text-2xl">🌍 Diogo Santos</h1>
+        <span>
           Student, aspiring software engineer <br /> <br />
           Writing my master thesis on byzantine fault tolerant algorithms <br />
           and distributed validator technology for Ethereum
         </span>
-        <h3 style={{ color: colorScheme.h, marginBottom: "0" }}>
-          Stuff I like
-        </h3>
-        <ul style={{ listStyle: "none", padding: "0 0 0 10px" }}>
-          <li style={{ color: colorScheme.text }}>
-            Distributed systems (proud Lamport fanboy)
-          </li>
-          <li style={{ color: colorScheme.text }}>DevOps and Cloud ☁️</li>
-          <li style={{ color: colorScheme.text }}>Linux 🗿</li>
-          <li style={{ color: colorScheme.text }}>
-            Tech-bro activities (gym 🏋🏻‍♂️ and bouldering 🪨)
-          </li>
+        <h3 className="font-bold text-xl mt-5 mb-1">Stuff I like</h3>
+        <ul className="ml-5">
+          <li>Distributed systems (proud Lamport fanboy)</li>
+          <li>DevOps and Cloud ☁️</li>
+          <li>Linux 🗿</li>
+          <li>Tech-bro activities (gym 🏋🏻‍♂️ and bouldering 🪨)</li>
         </ul>
-        <h3 style={{ color: colorScheme.h, marginBottom: "0" }}>
-          Professional experience
-        </h3>
-        <ul style={{ listStyle: "none", padding: "0 0 0 10px" }}>
-          <li
-            style={{
-              color: colorScheme.text,
-            }}
-            >
-            (Sep 2022 - Present ) Full Stack Developer @ IST 
-          </li>
-          <li
-            style={{
-              color: colorScheme.text,
-            }}
-          >
-            (Jul 2023 - Aug 2023) Software Engineer Intern @ Jungle 
-          </li>
-          <li
-            style={{
-              color: colorScheme.text,
-            }}
-          >
-            (Oct 2021 - Mar 2022) Outsourcing consultant @ JUNITEC 
-          </li>
-          <li
-            style={{
-              color: colorScheme.text,
-            }}
-          >
-            (Jul 2021 - Sep 2021) Front-End Developer Intern @ Spin.Works 
-          </li>
+        <h3 className="font-bold text-xl mt-5 mb-1">Professional experience</h3>
+        <div className="ml-5">
+          <ul>
+            <li>(Sep 2022 - Present ) Software Engineer @ IST</li>
+            <li>(Jul 2023 - Aug 2023) Software Engineer Intern @ Jungle</li>
+            <li>(Oct 2021 - Mar 2022) Outsourcing consultant @ JUNITEC</li>
+            <li>
+              (Jul 2021 - Sep 2021) Front-End Developer Intern @ Spin.Works
+            </li>
+          </ul>
+          <p className="mt-3">Check LinkedIn or curriculum for more details</p>
+        </div>
+        <h3 className="font-bold text-xl mt-5 mb-1">Github projects</h3>
+        <ul className="ml-5">
+          {links.map((item, index) => (
+            <li key={index}>
+              <a href={item.url}>
+                <span className="hover:underline">{item.name}</span>
+                <span className="underline-none"> 🔗</span>
+              </a>
+            </li>
+          ))}
         </ul>
-        <span style={{ padding: "0 0 0 10px", color: colorScheme.text }}>
-          Check LinkedIn or curriculum for more details
-        </span>
-        <h3 style={{ color: colorScheme.h, marginBottom: "0" }}>
-          Github projects
-        </h3>
-        <ul
-          style={{
-            listStyle: "none",
-            padding: "0 0 0 10px",
-            color: colorScheme.text,
-          }}
-        >
-          <li>
+        <div className="text-right">
+          <span>
             <a
-              style={{ color: colorScheme.text }}
-              href="https://github.com/DiogoSantoss/nvolopi"
+              href="https://www.linkedin.com/in/diogo-silva-santos/"
+              className="inline-block mr-2"
             >
-              microservices architecture deployed on GKE
+              <img
+                src="https://skills.thijs.gg/icons?i=linkedin"
+                alt="Linkedin"
+              />
             </a>
-          </li>
-          <li>
             <a
-              style={{ color: colorScheme.text }}
-              href="https://github.com/DiogoSantoss/2fa-stock-broker"
+              href="https://www.github.com/DiogoSantoss"
+              className="inline-block"
             >
-              secure infrastructure with JWT and 2FA
+              <img src="https://skills.thijs.gg/icons?i=github" alt="Github" />
             </a>
-          </li>
-          <li>
-            <a
-              style={{ color: colorScheme.text }}
-              href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft"
-            >
-              state machine replication using QBFT
-            </a>
-          </li>
-          <li>
-            <a
-              style={{ color: colorScheme.text }}
-              href="https://github.com/DiogoSantoss/fault-tolerant-bank"
-            >
-              multi-paxos implementation
-            </a>
-          </li>
-          <li>
-            <a
-              style={{ color: colorScheme.text }}
-              href="https://github.com/DiogoSantoss/gossip-architecture-grpc"
-            >
-              gossip architecture
-            </a>
-          </li>
-        </ul>
-        <span style={{ float: "right" }}>
-          <a
-            style={{ marginRight: "1em" }}
-            href="https://www.linkedin.com/in/diogo-silva-santos/"
-          >
-            <img
-              src="https://skills.thijs.gg/icons?i=linkedin"
-              alt="Linkedin"
-            />
-          </a>
-          <a href="https://www.github.com/DiogoSantoss">
-            <img src="https://skills.thijs.gg/icons?i=github" alt="Github" />
-          </a>
-        </span>
+          </span>
+        </div>
+        <WebRing />
       </div>
     </>
   );
