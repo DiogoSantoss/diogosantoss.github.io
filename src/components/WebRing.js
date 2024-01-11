@@ -8,7 +8,7 @@ function WebRing() {
       </button>
       <span className="mx-5">Webring</span>
       <button>
-        <a className="hover:underline" href="">
+        <a className="hover:underline" href="https://vaascoo.pt/">
           Vasco »
         </a>
       </button>

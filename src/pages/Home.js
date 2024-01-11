@@ -69,7 +69,7 @@ function Home() {
         <h3 className="font-bold text-xl mt-5 mb-1">Professional experience</h3>
         <div className="ml-5">
           <ul>
-            <li>(Sep 2022 - Present ) Software Engineer @ IST</li>
+            <li>(Sep 2022 - Present ) Full Stack Developer @ IST</li>
             <li>(Jul 2023 - Aug 2023) Software Engineer Intern @ Jungle</li>
             <li>(Oct 2021 - Mar 2022) Outsourcing consultant @ JUNITEC</li>
             <li>

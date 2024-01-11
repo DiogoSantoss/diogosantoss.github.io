@@ -9,6 +9,7 @@ Personal website create to showcase my portfolio, skills, and experience. It's a
 * [Node](https://nodejs.org/) - JavaScript runtime environment
 * [npm](https://www.npmjs.com/) - Package manager for the JavaScript programming language
 * [React](https://reactjs.org/) - JavaScript library for building user interfaces
+* [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
 
 ## Getting Started
 
