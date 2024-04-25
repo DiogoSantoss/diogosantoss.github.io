@@ -23,6 +23,13 @@ function Home() {
     console.log(mad.join("\n"));
   }, []);
 
+  const stuff = [
+    "Distributed systems",
+    "Golang fanboy",
+    "Linux/Infrastructure/Cloud",
+    "Tech-bro activities (gym 🏋🏻‍♂️ and bouldering 🪨)",
+  ]
+
   const links = [
     {
       name: "microservices architecture deployed on GKE",
@@ -50,6 +57,34 @@ function Home() {
     },
   ];
 
+  const experience = [
+    {
+      date: "May 2024 - Present",
+      role: "First Stage Researcher",
+      company: "INESC-ID",
+    },
+    {
+      date: "Sep 2022 - May 2024",
+      role: "Full Stack Developer",
+      company: "IST",
+    },
+    {
+      date: "Jul 2023 - Aug 2023",
+      role: "Software Engineer Intern",
+      company: "Jungle",
+    },
+    {
+      date: "Oct 2021 - Mar 2022",
+      role: "Outsourcing consultant",
+      company: "JUNITEC",
+    },
+    {
+      date: "Jul 2021 - Sep 2021",
+      role: "Front-End Developer Intern",
+      company: "Spin.Works",
+    },
+  ]
+
   return (
     <>
       <div className="bg-githubDark text-white rounded-xl p-5 shadow-homeShadow">
@@ -61,22 +96,20 @@ function Home() {
         </span>
         <h3 className="font-bold text-xl mt-5 mb-1">Stuff I like</h3>
         <ul className="ml-5">
-          <li>Distributed systems (proud Lamport fanboy)</li>
-          <li>DevOps and Cloud ☁️</li>
-          <li>Linux 🗿</li>
-          <li>Tech-bro activities (gym 🏋🏻‍♂️ and bouldering 🪨)</li>
+          {stuff.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
         </ul>
         <h3 className="font-bold text-xl mt-5 mb-1">Professional experience</h3>
         <div className="ml-5">
           <ul>
-            <li>(Sep 2022 - Present ) Full Stack Developer @ IST</li>
-            <li>(Jul 2023 - Aug 2023) Software Engineer Intern @ Jungle</li>
-            <li>(Oct 2021 - Mar 2022) Outsourcing consultant @ JUNITEC</li>
-            <li>
-              (Jul 2021 - Sep 2021) Front-End Developer Intern @ Spin.Works
-            </li>
+            {experience.map((item, index) => (
+              <li key={index}>
+                <span className="font-bold">{item.date}</span>
+                <span> - {item.role} @ {item.company}</span>
+              </li>
+            ))}
           </ul>
-          <p className="mt-3">Check LinkedIn or curriculum for more details</p>
         </div>
         <h3 className="font-bold text-xl mt-5 mb-1">Github projects</h3>
         <ul className="ml-5">
@@ -96,7 +129,7 @@ function Home() {
               className="inline-block mr-2"
             >
               <img
-                src="https://skills.thijs.gg/icons?i=linkedin"
+                src="https://skillicons.dev/icons?i=linkedin"
                 alt="Linkedin"
               />
             </a>
@@ -104,7 +137,7 @@ function Home() {
               href="https://www.github.com/DiogoSantoss"
               className="inline-block"
             >
-              <img src="https://skills.thijs.gg/icons?i=github" alt="Github" />
+              <img src="https://skillicons.dev/icons?i=github" alt="Github" />
             </a>
           </span>
         </div>
