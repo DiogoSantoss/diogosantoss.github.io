@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5"
+    />
+
+    <title>Diogo</title>
+    <link rel="canonical" href="https://diogoms.pt" />
+
+    <meta name="author" content="Diogo Santos" />
+    <meta name="title" content="🌍 Diogo Santos" />
+    <meta
+      name="description"
+      content="Student, aspiring software engineer. Writing my master thesis on byzantine fault tolerant algorithms and distributed validator technology for Ethereum."
+    />
+
+    <!-- Open Graph Card -->
+    <meta property="og:site_name" content="🌍 Diogo Santos" />
+    <meta property="og:title" content="🌍 Diogo Santos" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://diogoms.pt" />
+    <meta
+      property="og:description"
+      content="Student, aspiring software engineer. Writing my master thesis on byzantine fault tolerant algorithms and distributed validator technology for Ethereum."
+    />
+    <meta
+      property="og:image"
+      content="https://your-image-url.com/your-image.png"
+    />
+
+    <!-- Twitter Card -->
+    <meta property="twitter:card" content="summary" />
+    <meta property="twitter:url" content="https://your-website-url.com" />
+    <meta property="twitter:title" content="🌍 Diogo Santos" />
+    <meta
+      property="twitter:description"
+      content="Student, aspiring software engineer. Writing my master thesis on byzantine fault tolerant algorithms and distributed validator technology for Ethereum."
+    />
+    <meta
+      property="twitter:image"
+      content="https://your-image-url.com/your-image.png"
+    />
+
+    <link
+      rel="shortcut icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E💜%3C/text%3E%3C/svg%3E"
+    />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap");
+
+      :root {
+        --width: 720px;
+        --font-main: "Fira Code", monospace;
+        --font-secondary: "Fira Code", monospace;
+        --font-scale: 1em;
+        --background-color: #fff;
+        --heading-color: #222;
+        --text-color: #444;
+        --link-color: #3273dc;
+        --visited-color: #8b6fcb;
+        --code-background-color: #f2f2f2;
+        --code-color: #222;
+        --blockquote-color: #222;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background-color: #01242e;
+          --heading-color: #eee;
+          --text-color: #ddd;
+          --link-color: #8cc2dd;
+          --visited-color: #8b6fcb;
+          --code-background-color: #000;
+          --code-color: #ddd;
+          --blockquote-color: #ccc;
+        }
+      }
+
+      body {
+        font-family: var(--font-secondary);
+        font-size: var(--font-scale);
+        margin: auto;
+        padding: 20px;
+        max-width: var(--width);
+        text-align: left;
+        background-color: var(--background-color);
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+        color: var(--text-color);
+
+        background-image: url("wallpaper.jpg");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-position: center;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        font-family: var(--font-main);
+        color: var(--heading-color);
+      }
+
+      a {
+        color: var(--link-color);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      nav a {
+        margin-right: 8px;
+      }
+
+      strong,
+      b {
+        color: var(--heading-color);
+      }
+
+      button {
+        margin: 0;
+        cursor: pointer;
+      }
+
+      time {
+        font-family: monospace;
+        font-style: normal;
+        font-size: 15px;
+      }
+
+      main {
+        margin-top: 40px;
+        margin-bottom: 20px;
+        padding: 20px;
+        border: 1px solid var(--link-color);
+        background-color: #242938;
+        border-radius: 10px;
+      }
+
+      table {
+        width: 100%;
+      }
+
+      hr {
+        border: 0;
+        border-top: 1px dashed;
+      }
+
+      img {
+        max-width: 100%;
+      }
+
+      footer {
+        text-align: center;
+      }
+
+      .gifs {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .webring {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        font-weight: bold;
+      }
+
+      .webring a {
+        margin: 0 10px;
+      }
+
+      .socials {
+        display: flex;
+        justify-content: right;
+      }
+
+      .socials img {
+        height: 60px;
+      }
+    </style>
+    <script async>
+      document.addEventListener("DOMContentLoaded", () => {
+        fetch("https://pombosmalvados.github.io./webring/webring.json")
+          .then((response) => response.json())
+          .then((data) => {
+            const name = "diogo santos";
+            const index = data.findIndex((m) => m.name.toLowerCase() === name);
+
+            if (index === -1) {
+              console.error("Failed to find myself in the webring data");
+              return;
+            }
+
+            const prevIndex = (index - 1 + data.length) % data.length;
+            const nextIndex = (index + 1) % data.length;
+
+            const prev = data[prevIndex];
+            const next = data[nextIndex];
+
+            document.getElementById("webring-prev").innerHTML = `
+              <a href="${prev.url}">« ${prev.name}</a>
+            `;
+            document.getElementById("webring-next").innerHTML = `
+              <a href="${next.url}">${next.name} »</a>
+            `;
+          })
+          .catch((error) => {
+            console.error("Failed to fetch webring data", error);
+          });
+      });
+    </script>
+  </head>
+  <body class="home">
+    <!--
+    <header>
+      <a class="title" href="/">
+        <h1>🌍 Diogo Santos</h1>
+      </a>
+      
+      <nav>
+        <p>
+          <a href="/">Home</a>
+        </p>
+      </nav>
+    </header>
+     -->
+    <main>
+      <h1>🌍 Diogo Santos</h1>
+      <h3>Software engineer in the making</h3>
+      <p>
+        Writing my master thesis on byzantine fault tolerant algorithms and
+        distributed validator technology for Ethereum.
+      </p>
+      <h3 id="stuff-i-like">Stuff I like</h3>
+      <ul style="list-style-type: none">
+        <li>Distributed systems</li>
+        <li>Golang fanboy</li>
+        <li>Infrastructure and cloud tech</li>
+        <li>Gym 🏋🏻‍♂️ and bouldering 🪨</li>
+      </ul>
+      <h3 id="professional-experience">Professional experience</h3>
+      <ul style="list-style-type: none">
+        <li>
+          <span style="font-weight: bold">[May 2024, &nbsp&nbsp Today[</span>
+          First Stage Researcher @ INESC-ID
+        </li>
+        <li>
+          <span style="font-weight: bold">[Sep 2022, Apr 2024]</span> Full Stack
+          Developer @ IST
+        </li>
+        <li>
+          <span style="font-weight: bold">[Jul 2023, Aug 2023]</span> Software
+          Engineer Intern @ Jungle
+        </li>
+        <li>
+          <span style="font-weight: bold">[Oct 2021, Mar 2022]</span>
+          Outsourcing consultant @ JUNITEC
+        </li>
+        <li>
+          <span style="font-weight: bold">[Jul 2021, Sep 2021]</span> Front-End
+          Developer Intern @ Spin.Works
+        </li>
+      </ul>
+      <h3>Some of my projects</h3>
+      <ul style="list-style-type: none">
+        <li>
+          <a href="https://github.com/DiogoSantoss/nvolopi"
+            >microservices architecture deployed on GKE 🔗</a
+          >
+        </li>
+        <li>
+          <a
+            href="https://github.com/DiogoSantoss/cloud-computing-virtualization"
+            >instrumentation of java applications in AWS 🔗</a
+          >
+        </li>
+        <li>
+          <a href="https://github.com/DiogoSantoss/2fa-stock-broker"
+            >secure infrastructure with JWT and 2FA 🔗</a
+          >
+        </li>
+        <li>
+          <a href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft"
+            >state machine replication using QBFT 🔗</a
+          >
+        </li>
+        <li>
+          <a href="https://github.com/DiogoSantoss/fault-tolerant-bank"
+            >multi-paxos implementation 🔗</a
+          >
+        </li>
+      </ul>
+      <div class="socials">
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/"
+          ><img src="linkedin.gif" alt="twitter.gif"
+        /></a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/"
+          ><img src="twitter.gif" alt="twitter.gif"
+        /></a>
+        <a href="https://www.github.com/DiogoSantoss"
+          ><img src="github.gif" alt="github.gif"
+        /></a>
+      </div>
+      <div class="webring">
+        <div id="webring-prev"></div>
+        <span>(Webring friends)</span>
+        <div id="webring-next"></div>
+      </div>
+    </main>
+    <footer>
+      <div class="gifs">
+        <img src="bestviewedyour.gif" alt="bestviewedyour.gif" />
+        <img src="cdrom.gif" alt="cdroom.gif" />
+        <img src="powered.gif" alt="powered.gif" />
+        <img src="service.gif" alt="service.gif" />
+        <img src="archlinux.gif" alt="archlinux.gif" />
+      </div>
+    </footer>
+  </body>
+</html>
