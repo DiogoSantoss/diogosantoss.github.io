@@ -51,20 +51,11 @@ function Home() {
       name: "multi-paxos implementation",
       url: "https://github.com/DiogoSantoss/fault-tolerant-bank",
     },
-    {
-      name: "gossip architecture",
-      url: "https://github.com/DiogoSantoss/nvolopi",
-    },
   ];
 
   const experience = [
     {
-      date: "May 2024 - Present",
-      role: "First Stage Researcher",
-      company: "INESC-ID",
-    },
-    {
-      date: "Sep 2022 - May 2024",
+      date: "Sep 2022 - Apr 2024",
       role: "Full Stack Developer",
       company: "IST",
     },
