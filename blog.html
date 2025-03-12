@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=5"
     />
 
-    <title>Diogo Santos</title>
+    <title>Diogo</title>
     <link rel="canonical" href="https://diogoms.pt" />
 
     <meta name="author" content="Diogo Santos" />
@@ -70,11 +70,11 @@
             const next = data[nextIndex];
 
             document.getElementById("webring-prev").innerHTML = `
-              <a href="${prev.url}">« ${prev.name}</a>
-            `;
+                  <a href="${prev.url}">« ${prev.name}</a>
+                `;
             document.getElementById("webring-next").innerHTML = `
-              <a href="${next.url}">${next.name} »</a>
-            `;
+                  <a href="${next.url}">${next.name} »</a>
+                `;
           })
           .catch((error) => {
             console.error("Failed to fetch webring data", error);
@@ -82,7 +82,7 @@
       });
     </script>
   </head>
-  <body class="home">
+  <body>
     <main>
       <h1>🌍 Diogo Santos</h1>
       <nav>
@@ -90,80 +90,6 @@
         <a href="/blog.html">blog</a>
         <a href="cv-diogo-santos.pdf">cv</a>
       </nav>
-      <h3>Software engineer</h3>
-      <p>
-        Working on Distributed Validator Technology at DV Labs
-      </p>
-      <h3 id="stuff-i-like">Stuff I like</h3>
-      <ul style="list-style-type: none">
-        <li>Distributed systems</li>
-        <li>Golang fanboy</li>
-        <li>Infrastructure and cloud tech</li>
-        <li>Gym 🏋🏻‍♂️ and bouldering 🪨</li>
-      </ul>
-      <h3 id="professional-experience">Professional experience</h3>
-      <ul style="list-style-type: none">
-        <li>
-          <span style="font-weight: bold">[Nov 2024, Present]</span>
-          Junior Protocol Engineer @ DV Labs
-        </li>
-        <li>
-          <span style="font-weight: bold">[May 2024, Jul 2024]</span>
-          First Stage Researcher @ INESC-ID
-        </li>
-        <li>
-          <span style="font-weight: bold">[Sep 2022, Apr 2024]</span> Full Stack
-          Developer @ DEI-IST
-        </li>
-        <li>
-          <span style="font-weight: bold">[Jul 2023, Aug 2023]</span> Software
-          Engineer Intern @ Jungle
-        </li>
-        <li>
-          <span style="font-weight: bold">[Oct 2021, Mar 2022]</span>
-          Outsourcing consultant @ JUNITEC
-        </li>
-        <li>
-          <span style="font-weight: bold">[Jul 2021, Sep 2021]</span> Front-End
-          Developer Intern @ Spin.Works
-        </li>
-      </ul>
-      <h3>Some of my projects</h3>
-      <ul style="list-style-type: none">
-        <li>
-          <a href="https://github.com/DiogoSantoss/nvolopi"
-            >microservices architecture deployed on GKE 🔗</a
-          >
-        </li>
-        <li>
-          <a
-            href="https://github.com/DiogoSantoss/cloud-computing-virtualization"
-            >instrumentation of java applications in AWS 🔗</a
-          >
-        </li>
-        <li>
-          <a href="https://github.com/DiogoSantoss/2fa-stock-broker"
-            >secure infrastructure with JWT and 2FA 🔗</a
-          >
-        </li>
-        <li>
-          <a href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft"
-            >state machine replication using QBFT 🔗</a
-          >
-        </li>
-        <li>
-          <a href="https://github.com/DiogoSantoss/fault-tolerant-bank"
-            >multi-paxos implementation 🔗</a
-          >
-        </li>
-      </ul>
-      <div class="socials">
-        <a href="https://x.com/l_Didas_l">twitter</a>
-        |
-        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
-        |
-        <a href="https://github.com/DiogoSantoss">github</a>
-      </div>
     </main>
     <div class="webring">
       <div id="webring-prev"></div>
