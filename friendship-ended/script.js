@@ -46,12 +46,147 @@ function drawRainbowText(text, x, y, maxWidth, initialSize) {
   context.fillText(text, x, y, maxWidth);
 }
 
+function hashName(name) {
+  return [...name].reduce(
+    (hash, character) => (hash * 31 + character.codePointAt(0)) >>> 0,
+    2166136261,
+  );
+}
+
+function drawGeneratedPortrait(name, x, y, width, height, mirrored) {
+  const hash = hashName(name);
+  const hue = hash % 360;
+  const accentHue = (hue + 135) % 360;
+  const centerX = x + width / 2;
+  const headTop = y + height * 0.2;
+  const headWidth = width * 0.68;
+  const headHeight = height * 0.52;
+  const initial = name.match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() || "?";
+  const direction = mirrored ? -1 : 1;
+
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+
+  const background = context.createLinearGradient(x, y, x + width, y + height);
+  background.addColorStop(0, `hsl(${hue} 78% 35%)`);
+  background.addColorStop(1, `hsl(${accentHue} 82% 62%)`);
+  context.fillStyle = background;
+  context.fillRect(x, y, width, height);
+
+  context.globalAlpha = 0.22;
+  context.fillStyle = "#fff";
+  for (let index = 0; index < 5; index += 1) {
+    const radius = width * (0.12 + ((hash >> index) & 3) * 0.025);
+    const circleX = x + ((hash >> (index + 3)) % width);
+    const circleY = y + ((hash >> (index + 8)) % height);
+    context.beginPath();
+    context.arc(circleX, circleY, radius, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.globalAlpha = 1;
+
+  context.strokeStyle = "#17202a";
+  context.lineWidth = Math.max(3, width * 0.035);
+  context.beginPath();
+  context.moveTo(centerX, headTop);
+  context.lineTo(centerX + direction * width * 0.12, headTop - height * 0.1);
+  context.stroke();
+  context.fillStyle = "#ffdf57";
+  context.beginPath();
+  context.arc(
+    centerX + direction * width * 0.12,
+    headTop - height * 0.1,
+    width * 0.045,
+    0,
+    Math.PI * 2,
+  );
+  context.fill();
+
+  context.fillStyle = "#d9e7ec";
+  context.strokeStyle = "#17202a";
+  context.fillRect(
+    centerX - headWidth / 2,
+    headTop,
+    headWidth,
+    headHeight,
+  );
+  context.strokeRect(
+    centerX - headWidth / 2,
+    headTop,
+    headWidth,
+    headHeight,
+  );
+
+  context.fillStyle = "#17202a";
+  const eyeY = headTop + headHeight * 0.36;
+  const eyeOffset = headWidth * 0.23;
+  context.beginPath();
+  context.arc(centerX - eyeOffset, eyeY, width * 0.055, 0, Math.PI * 2);
+  context.arc(centerX + eyeOffset, eyeY, width * 0.055, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = `hsl(${hue} 75% 32%)`;
+  context.lineWidth = Math.max(3, width * 0.04);
+  context.beginPath();
+  context.moveTo(centerX - headWidth * 0.22, headTop + headHeight * 0.7);
+  context.lineTo(centerX + headWidth * 0.22, headTop + headHeight * 0.7);
+  context.stroke();
+
+  context.fillStyle = "rgba(23, 32, 42, 0.82)";
+  context.fillRect(x, y + height * 0.78, width, height * 0.22);
+  context.fillStyle = "#fff";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = `900 ${Math.max(18, width * 0.25)}px Arial Black, sans-serif`;
+  context.fillText(initial, centerX, y + height * 0.89);
+  context.restore();
+}
+
+function drawCross(x, y, width, height) {
+  context.save();
+  context.lineCap = "round";
+  context.strokeStyle = "rgba(32, 0, 0, 0.7)";
+  context.lineWidth = 12;
+  context.beginPath();
+  context.moveTo(x + 10, y + 10);
+  context.lineTo(x + width - 10, y + height - 10);
+  context.moveTo(x + width - 10, y + 10);
+  context.lineTo(x + 10, y + height - 10);
+  context.stroke();
+  context.strokeStyle = "#e30016";
+  context.lineWidth = 7;
+  context.stroke();
+  context.restore();
+}
+
+function drawFormerFriendCutouts(name) {
+  const cutouts = [
+    { x: 0, y: 207, width: 106, height: 163, mirrored: false },
+    { x: 361, y: 225, width: 139, height: 145, mirrored: true },
+  ];
+
+  cutouts.forEach((cutout) => {
+    drawGeneratedPortrait(
+      name,
+      cutout.x,
+      cutout.y,
+      cutout.width,
+      cutout.height,
+      cutout.mirrored,
+    );
+    drawCross(cutout.x, cutout.y, cutout.width, cutout.height);
+  });
+}
+
 function renderMeme() {
   const formerFriend = formerFriendInput.value.trim() || "Mudasir";
   const newFriend = newFriendInput.value.trim() || "Salman";
 
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.drawImage(template, 0, 0, canvas.width, canvas.height);
+  drawFormerFriendCutouts(formerFriend);
 
   drawRainbowText(formerFriend, 330, 58, 165, 34);
   drawRainbowText(newFriend, 5, 185, 185, 38);
