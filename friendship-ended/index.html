@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Friendship Ended Meme Generator</title>
+    <meta
+      name="description"
+      content="Generate a Friendship ended with X, now Y is my best friend meme from URL parameters."
+    />
+
+    <link
+      rel="shortcut icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E🤝%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="/">← diogoms.pt</a>
+        <h1>Friendship ended meme generator</h1>
+        <p>
+          Add <code>?x=old friend&amp;y=new friend</code> to the URL, or use
+          the form below.
+        </p>
+      </header>
+
+      <form id="meme-form">
+        <label>
+          Friendship ended with
+          <input
+            id="former-friend"
+            name="x"
+            type="text"
+            value="Mudasir"
+            maxlength="40"
+            autocomplete="off"
+          />
+        </label>
+        <label>
+          Now this is my best friend
+          <input
+            id="new-friend"
+            name="y"
+            type="text"
+            value="Salman"
+            maxlength="40"
+            autocomplete="off"
+          />
+        </label>
+        <button type="submit">Generate meme</button>
+      </form>
+
+      <section class="result" aria-label="Generated meme">
+        <canvas id="meme" width="500" height="370">
+          Your browser does not support canvas.
+        </canvas>
+        <p id="status" role="status" aria-live="polite"></p>
+        <div class="actions">
+          <button id="copy-link" type="button">Copy link</button>
+          <a id="download" download="friendship-ended.png">Download PNG</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
