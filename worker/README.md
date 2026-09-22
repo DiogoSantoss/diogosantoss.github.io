@@ -1,6 +1,6 @@
 # Friendship Ended AI Worker
 
-This Worker generates the two meme portraits with Cloudflare Workers AI using
+This Worker generates the two meme images with Cloudflare Workers AI using
 `@cf/black-forest-labs/flux-1-schnell`.
 
 ## Deploy

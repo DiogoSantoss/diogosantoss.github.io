@@ -5,6 +5,29 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:4173",
   "http://127.0.0.1:4173",
 ]);
+const PROMPT_VERSION = "concept-v2";
+
+function describeSubject(name) {
+  const normalizedName = name.toLowerCase();
+  const looksLikeAiModel =
+    /\b(gpt|chatgpt|claude|opus|gemini|llama|mistral|deepseek|grok|qwen|llm)\b/.test(
+      normalizedName,
+    );
+
+  if (looksLikeAiModel) {
+    return [
+      `${JSON.stringify(name)} refers to an artificial-intelligence large language model.`,
+      "Depict the AI model itself as an absurd machine, robot brain, neural network, server rack, or chatbot creature.",
+      "Do not turn it into an ordinary human person.",
+    ].join(" ");
+  }
+
+  return [
+    `First infer what the term ${JSON.stringify(name)} means or refers to.`,
+    "Draw the actual object, animal, technology, software, character, place, organization, or abstract concept represented by that term.",
+    "Do not default to drawing a human face unless the term clearly names a person.",
+  ].join(" ");
+}
 
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
@@ -54,7 +77,7 @@ export default {
 
     const cache = caches.default;
     const cacheKey = new Request(
-      `${url.origin}/portrait?name=${encodeURIComponent(name.toLowerCase())}&role=${role}`,
+      `${url.origin}/portrait?v=${PROMPT_VERSION}&name=${encodeURIComponent(name.toLowerCase())}&role=${role}`,
     );
     const cached = await cache.match(cacheKey);
     if (cached) {
@@ -71,9 +94,10 @@ export default {
         ? "an ex-best-friend who has just been dramatically rejected"
         : "a triumphant new best friend";
     const prompt = [
-      `A deliberately terrible low-budget internet meme portrait representing ${JSON.stringify(name)}.`,
-      `The character should visually evoke the name or concept ${JSON.stringify(name)} and look like ${relationship}.`,
-      "One centered subject, square portrait crop, tacky clip-art aesthetic, oversaturated colors, awkward lighting, cheap 2015 meme energy.",
+      `A deliberately terrible low-budget internet meme image representing ${JSON.stringify(name)}.`,
+      describeSubject(name),
+      `Make the subject look like ${relationship}.`,
+      "One centered visual subject that fills the square frame, tacky clip-art aesthetic, oversaturated colors, awkward composition, cheap 2015 meme energy.",
       "No words, no letters, no captions, no logos, no watermark, no border.",
     ].join(" ");
 

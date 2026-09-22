@@ -275,7 +275,7 @@ async function generateAiPortraits() {
   const currentGeneration = ++generation;
 
   generateButton.disabled = true;
-  status.textContent = "Generating two terrible AI portraits…";
+  status.textContent = "Generating two terrible AI interpretations…";
 
   try {
     const [formerPortrait, newPortrait] = await Promise.all([
@@ -294,7 +294,7 @@ async function generateAiPortraits() {
     portraits.former = formerPortrait;
     portraits.new = newPortrait;
     renderMeme();
-    status.textContent = "AI portraits generated. Maximum slop achieved.";
+    status.textContent = "AI images generated. Maximum slop achieved.";
   } catch (error) {
     console.error(error);
     status.textContent =
