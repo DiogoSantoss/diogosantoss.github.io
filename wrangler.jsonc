@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "friendship-ended-ai",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-22",
+  "account_id": "f60fade8181d060e093278d59883aae6",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
