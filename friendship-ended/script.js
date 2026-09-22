@@ -161,22 +161,40 @@ function drawCross(x, y, width, height) {
   context.restore();
 }
 
-function drawFormerFriendCutouts(name) {
+function drawFriendCutouts(formerFriend, newFriend) {
   const cutouts = [
-    { x: 0, y: 207, width: 106, height: 163, mirrored: false },
-    { x: 361, y: 225, width: 139, height: 145, mirrored: true },
+    {
+      name: formerFriend,
+      x: 0,
+      y: 207,
+      width: 106,
+      height: 163,
+      mirrored: false,
+      crossedOut: true,
+    },
+    {
+      name: newFriend,
+      x: 361,
+      y: 225,
+      width: 139,
+      height: 145,
+      mirrored: true,
+      crossedOut: false,
+    },
   ];
 
   cutouts.forEach((cutout) => {
     drawGeneratedPortrait(
-      name,
+      cutout.name,
       cutout.x,
       cutout.y,
       cutout.width,
       cutout.height,
       cutout.mirrored,
     );
-    drawCross(cutout.x, cutout.y, cutout.width, cutout.height);
+    if (cutout.crossedOut) {
+      drawCross(cutout.x, cutout.y, cutout.width, cutout.height);
+    }
   });
 }
 
@@ -186,7 +204,7 @@ function renderMeme() {
 
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.drawImage(template, 0, 0, canvas.width, canvas.height);
-  drawFormerFriendCutouts(formerFriend);
+  drawFriendCutouts(formerFriend, newFriend);
 
   drawRainbowText(formerFriend, 330, 58, 165, 34);
   drawRainbowText(newFriend, 5, 185, 185, 38);
