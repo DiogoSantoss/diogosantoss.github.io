@@ -7,6 +7,13 @@ const copyLinkButton = document.querySelector("#copy-link");
 const downloadLink = document.querySelector("#download");
 const status = document.querySelector("#status");
 const template = new Image();
+const generateButton = form.querySelector('button[type="submit"]');
+const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const aiEndpoint = isLocal
+  ? "http://127.0.0.1:8787"
+  : "https://friendship-ended-ai.dsantos-individual-account.workers.dev";
+const portraits = { former: null, new: null };
+let generation = 0;
 
 const params = new URLSearchParams(window.location.search);
 formerFriendInput.value =
@@ -161,10 +168,31 @@ function drawCross(x, y, width, height) {
   context.restore();
 }
 
+function drawPortraitImage(image, x, y, width, height) {
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+  const sourceSize = Math.min(sourceWidth, sourceHeight);
+  const sourceX = (sourceWidth - sourceSize) / 2;
+  const sourceY = (sourceHeight - sourceSize) / 2;
+
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceSize,
+    sourceSize,
+    x,
+    y,
+    width,
+    height,
+  );
+}
+
 function drawFriendCutouts(formerFriend, newFriend) {
   const cutouts = [
     {
       name: formerFriend,
+      image: portraits.former,
       x: 0,
       y: 207,
       width: 106,
@@ -174,6 +202,7 @@ function drawFriendCutouts(formerFriend, newFriend) {
     },
     {
       name: newFriend,
+      image: portraits.new,
       x: 361,
       y: 225,
       width: 139,
@@ -184,14 +213,24 @@ function drawFriendCutouts(formerFriend, newFriend) {
   ];
 
   cutouts.forEach((cutout) => {
-    drawGeneratedPortrait(
-      cutout.name,
-      cutout.x,
-      cutout.y,
-      cutout.width,
-      cutout.height,
-      cutout.mirrored,
-    );
+    if (cutout.image) {
+      drawPortraitImage(
+        cutout.image,
+        cutout.x,
+        cutout.y,
+        cutout.width,
+        cutout.height,
+      );
+    } else {
+      drawGeneratedPortrait(
+        cutout.name,
+        cutout.x,
+        cutout.y,
+        cutout.width,
+        cutout.height,
+        cutout.mirrored,
+      );
+    }
     if (cutout.crossedOut) {
       drawCross(cutout.x, cutout.y, cutout.width, cutout.height);
     }
@@ -217,6 +256,56 @@ function renderMeme() {
   downloadLink.download = `${filename || "friendship-ended"}.png`;
 }
 
+async function fetchPortrait(name, role) {
+  const url = new URL("/portrait", aiEndpoint);
+  url.searchParams.set("name", name);
+  url.searchParams.set("role", role);
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Portrait generation failed with ${response.status}`);
+  }
+
+  return createImageBitmap(await response.blob());
+}
+
+async function generateAiPortraits() {
+  const formerFriend = formerFriendInput.value.trim() || "Mudasir";
+  const newFriend = newFriendInput.value.trim() || "Salman";
+  const currentGeneration = ++generation;
+
+  generateButton.disabled = true;
+  status.textContent = "Generating two terrible AI portraits…";
+
+  try {
+    const [formerPortrait, newPortrait] = await Promise.all([
+      fetchPortrait(formerFriend, "former"),
+      fetchPortrait(newFriend, "new"),
+    ]);
+
+    if (currentGeneration !== generation) {
+      formerPortrait.close();
+      newPortrait.close();
+      return;
+    }
+
+    portraits.former?.close();
+    portraits.new?.close();
+    portraits.former = formerPortrait;
+    portraits.new = newPortrait;
+    renderMeme();
+    status.textContent = "AI portraits generated. Maximum slop achieved.";
+  } catch (error) {
+    console.error(error);
+    status.textContent =
+      "AI generation failed, so the cursed robot fallback is being used.";
+  } finally {
+    if (currentGeneration === generation) {
+      generateButton.disabled = false;
+    }
+  }
+}
+
 function updateUrl() {
   const url = new URL(window.location.href);
   url.searchParams.set("x", formerFriendInput.value.trim() || "Mudasir");
@@ -228,11 +317,22 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   updateUrl();
   renderMeme();
-  status.textContent = "Meme generated and URL updated.";
+  generateAiPortraits();
 });
 
-formerFriendInput.addEventListener("input", renderMeme);
-newFriendInput.addEventListener("input", renderMeme);
+function handleNameInput() {
+  generation += 1;
+  portraits.former?.close();
+  portraits.new?.close();
+  portraits.former = null;
+  portraits.new = null;
+  generateButton.disabled = false;
+  status.textContent = "Press Generate AI meme to create new portraits.";
+  renderMeme();
+}
+
+formerFriendInput.addEventListener("input", handleNameInput);
+newFriendInput.addEventListener("input", handleNameInput);
 
 copyLinkButton.addEventListener("click", async () => {
   updateUrl();
@@ -245,5 +345,8 @@ copyLinkButton.addEventListener("click", async () => {
   }
 });
 
-template.addEventListener("load", renderMeme);
+template.addEventListener("load", () => {
+  renderMeme();
+  generateAiPortraits();
+});
 template.src = "template.png";

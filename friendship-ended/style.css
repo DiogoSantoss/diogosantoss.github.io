@@ -95,6 +95,11 @@ button:hover,
   background: #b5def1;
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .result {
   display: grid;
   min-width: 0;
