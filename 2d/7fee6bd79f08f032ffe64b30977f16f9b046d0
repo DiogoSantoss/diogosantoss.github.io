@@ -1,0 +1,84 @@
+404.html
+  h_40929dfac5923b 1-51
+README.md
+  h_40929dfac5923b 1-11
+_config.yml
+  h_40929dfac5923b 1-4
+assets/fonts/OFL.txt
+  h_40929dfac5923b 1-93
+assets/grid.js
+  h_40929dfac5923b 1-128
+assets/ring.js
+  h_40929dfac5923b 1-667
+assets/site.css
+  h_40929dfac5923b 1-2,4-6,8-70
+assets/webring.js
+  h_40929dfac5923b 1-16
+blog.html
+  h_40929dfac5923b 1,5-13,15-25,28-34,36-38,40-47
+favicon.svg
+  h_40929dfac5923b 1-10
+gear.html
+  h_40929dfac5923b 1-72
+index.html
+  h_40929dfac5923b 1,5,7-13,15-25,27-34,36-38,40-42,44,46-56
+mocks/a-consensus.html
+  h_40929dfac5923b 1-214
+mocks/b-gossip.html
+  h_40929dfac5923b 1-175
+mocks/c-spacetime.html
+  h_40929dfac5923b 1-190
+mocks/d-raft.html
+  h_40929dfac5923b 1-244
+mocks/f-hashring.html
+  h_40929dfac5923b 1-188
+mocks/g-anycast.html
+  h_40929dfac5923b 1-195
+mocks/h-paxos.html
+  h_40929dfac5923b 1-227
+mocks/i-partition.html
+  h_40929dfac5923b 1-204
+mocks/index.html
+  h_40929dfac5923b 1-37
+mocks/j-lsm.html
+  h_40929dfac5923b 1-217
+mocks/m-pipeline.html
+  h_40929dfac5923b 1-295
+mocks/n-kafka.html
+  h_40929dfac5923b 1-303
+mocks/o-etcd.html
+  h_40929dfac5923b 1-300
+mocks/p-ring-avl.html
+  h_40929dfac5923b 1-504
+mocks/phones.html
+  h_40929dfac5923b 1-9
+mocks/q-quicksilver.html
+  h_40929dfac5923b 1-179
+mocks/r-durable-objects.html
+  h_40929dfac5923b 1-179
+mocks/s-tracing.html
+  h_40929dfac5923b 1-217
+mocks/scene.js
+  h_40929dfac5923b 1-103
+mocks/serve.py
+  h_40929dfac5923b 1-32
+mocks/t-cluster.html
+  h_40929dfac5923b 1-187
+mocks/u-dynamodb.html
+  h_40929dfac5923b 1-239
+mocks/worldmap.js
+  h_40929dfac5923b 1-69
+work.html
+  h_40929dfac5923b 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2d7fee6bd79f08f032ffe64b30977f16f9b046d0",
+  "prompts": {},
+  "humans": {
+    "h_40929dfac5923b": {
+      "author": "Diogo Santos <59585571+DiogoSantoss@users.noreply.github.com>"
+    }
+  }
+}
