@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gear · Diogo Santos</title>
+    <meta name="description" content="The hardware Diogo Santos uses: desktop build, laptops and desk setup." />
+    <meta name="theme-color" content="#0b0c0e" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href="https://diogoms.com/gear" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Diogo Santos" />
+    <meta property="og:title" content="Gear · Diogo Santos" />
+    <meta property="og:description" content="The hardware Diogo Santos uses: desktop build, laptops and desk setup." />
+    <meta property="og:url" content="https://diogoms.com/gear" />
+    <meta property="og:image" content="https://diogoms.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@l_Didas_l" />
+    <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/assets/site.css" />
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <nav class="pages">
+        <a href="/" data-route="/">home</a>
+        <a href="/work" data-route="/work">work</a>
+        <a href="/gear" data-route="/gear" aria-current="page">gear</a>
+        <a href="/blog" data-route="/blog">blog</a>
+      </nav>
+      <h1>Gear</h1>
+      <h2>desktop</h2>
+      <ul>
+        <li><span class="when">cpu</span><span class="what"><b>Ryzen 5 7600X</b> · 6c/12t · 5.3 GHz</span></li>
+        <li><span class="when">cooler</span><span class="what"><b>Peerless Assassin 120 SE</b> · Thermalright</span></li>
+        <li><span class="when">board</span><span class="what"><b>MSI B650 Gaming Plus WiFi</b></span></li>
+        <li><span class="when">ram</span><span class="what"><b>32 GB DDR5-6000 CL30</b> · T-Force Delta</span></li>
+        <li><span class="when">gpu</span><span class="what"><b>Radeon RX 7800 XT 16 GB</b> · XFX QICK 319</span></li>
+        <li><span class="when">ssd</span><span class="what"><b>2 TB WD Black SN850X</b> · PCIe 4.0</span></li>
+        <li><span class="when">psu</span><span class="what"><b>850 W Pure Power 12 M</b> · be quiet!</span></li>
+        <li><span class="when">case</span><span class="what"><b>Lian Li Lancool 216</b></span></li>
+      </ul>
+      <h2>laptops</h2>
+      <ul>
+        <li><span class="when">mac</span><span class="what"><b>MacBook Pro 16″ M3 Pro</b> · 36 GB · 512 GB</span></li>
+        <li><span class="when">thinkpad</span><span class="what"><b>ThinkPad L14</b> · specs tbd</span></li>
+      </ul>
+      <h2>desk</h2>
+      <ul>
+        <li><span class="when">main</span><span class="what"><b>LG UltraGear 27GR93U</b> · 27″ 4K 144 Hz</span></li>
+        <li><span class="when">side</span><span class="what"><b>Dell P2725QE</b> · 27″ 4K · portrait</span></li>
+        <li><span class="when">dock</span><span class="what"><b>Dell Thunderbolt 4 Dock</b></span></li>
+        <li><span class="when">camera</span><span class="what"><b>Logitech C925e</b> · 1080p</span></li>
+        <li><span class="when">audio</span><span class="what"><b>HyperX Cloud Alpha Wireless</b></span></li>
+        <li><span class="when">travel</span><span class="what"><b>Sony WH-1000XM6</b></span></li>
+      </ul>
+    </main>
+    <script type="module">
+      import { startRing } from "/assets/ring.js";
+      startRing({
+        canvas: document.getElementById("bg"),
+        content: document.getElementById("content"),
+
+      });
+    </script>
+  </body>
+</html>

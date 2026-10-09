@@ -1,0 +1,71 @@
+@font-face {
+  font-family: "Spline Sans Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/assets/fonts/spline-sans-mono-latin.woff2") format("woff2");
+}
+:root {
+  --bg: #0b0c0e;
+  --ink: #e9ebee;
+  --mid: rgba(233, 235, 238, 0.6);
+  --dim: rgba(233, 235, 238, 0.32);
+  --req: #6cb6ff;
+  --usr: #ff9f43;
+  --add: #5ee38a;
+  --del: #ff6b6b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+body { font-family: "Spline Sans Mono", ui-monospace, monospace; font-size: 14.5px; animation: arrive 0.4s ease-out; }
+canvas { position: fixed; inset: 0; transition: opacity 0.35s; }
+a { color: var(--ink); text-decoration: none; }
+a:hover, a:focus-visible { color: var(--req); outline: none; }
+
+.content {
+  position: fixed; left: 10vw; top: 50%; transform: translateY(-50%);
+  width: 50ch; max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: none;
+  transition: opacity 0.35s;
+}
+.content::-webkit-scrollbar { display: none; }
+.pages { display: flex; gap: 18px; color: var(--dim); margin-bottom: 26px; }
+.pages a { color: var(--mid); }
+.pages a[aria-current] { color: var(--ink); }
+.pages a[aria-current]::before { content: "▸ "; color: var(--req); }
+h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 12px; font-weight: 500; color: var(--dim); text-transform: lowercase; margin: 24px 0 10px; }
+p { margin-top: 16px; color: var(--mid); line-height: 1.7; }
+.email { margin-top: 14px; font-size: 13px; color: var(--dim); }
+.links { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; }
+/* fixed size so the ring's masks stay right when the webring loads */
+.webring { position: fixed; left: 10vw; right: 5vw; bottom: 22px; min-height: 1.7em; align-items: center; display: flex; gap: 12px; white-space: nowrap; overflow: hidden; font-size: 12.5px; color: var(--dim); }
+.webring a { color: var(--mid); }
+code { font-family: inherit; color: var(--usr); }
+
+ul { list-style: none; display: grid; gap: 7px; }
+li { display: grid; grid-template-columns: 9ch 1fr; gap: 12px; line-height: 1.45; }
+li .when { color: var(--dim); font-size: 12.5px; padding-top: 1px; }
+li .what { color: var(--mid); }
+li .what b { color: var(--ink); font-weight: 500; }
+
+.u { color: var(--usr); } .r { color: var(--req); } .a { color: var(--add); } .d { color: var(--del); }
+
+body.leaving .content, body.leaving .webring { opacity: 0; }
+body.leaving canvas { opacity: 0 !important; }
+@keyframes arrive { from { opacity: 0; } }
+
+@media (max-width: 760px) {
+  body { font-size: 14px; }
+  .content { left: 22px; right: 22px; width: auto; top: 22px; transform: none; max-height: calc(100vh - 90px); }
+  .pages { margin-bottom: 18px; }
+  .webring { left: 22px; right: 22px; bottom: 14px; }
+  h1 { font-size: 23px; }
+  h2 { margin: 18px 0 8px; }
+  li { grid-template-columns: 7.5ch 1fr; gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body { animation: none; }
+}
+.blink { color: var(--add); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mocks</title>
+    <style>
+      body { font: 15px/1.7 ui-monospace, monospace; background: #111; color: #ddd; padding: 48px; }
+      a { color: #fff; }
+      li { margin-bottom: 12px; }
+      span { color: #888; }
+    </style>
+  </head>
+  <body>
+    <h1>Vibe mocks</h1>
+    <ul>
+      <li><a href="a-consensus.html">A · Consensus</a> <span>dark terminal, 7 BFT nodes in a ring running propose/prevote/precommit with one faulty node</span></li>
+      <li><a href="b-gossip.html">B · Gossip</a> <span>light, a field of servers; new versions spread as epidemic waves until converged</span></li>
+      <li><a href="c-spacetime.html">C · Space-time</a> <span>amber, Lamport space-time diagram across PoP lanes with async message delays</span></li>
+      <li><a href="d-raft.html">D · Raft</a> <span>light, 5 servers with replicated logs; leader crashes, re-election, log repair</span></li>
+      <li><a href="f-hashring.html">F · Hash ring</a> <span>light + orange, consistent hashing: keys land on the ring and walk to their owner as servers join and leave</span></li>
+      <li><a href="g-anycast.html">G · Anycast</a> <span>dark + orange, ASCII world map; requests go to the nearest healthy Cloudflare city, cities fail and traffic shifts</span></li>
+      <li><a href="h-paxos.html">H · Paxos</a> <span>dark + cyan, two proposers duel over 5 acceptors; ballots, preemption, chosen-value log</span></li>
+      <li><a href="i-partition.html">I · Partition</a> <span>dark + coral, a network cut splits the cluster; majority commits, minority stalls, then heals and catches up</span></li>
+      <li><a href="j-lsm.html">J · LSM tree</a> <span>dark + yellow, memtable flushes to L0, leveled compaction tiles the key space, point reads probe down the levels</span></li>
+      <li><a href="m-pipeline.html">M · Pipeline</a> <span>dark + lime, producers → queue → raft cluster → read replicas → readers; backpressure, leader failover, stale reads</span></li>
+      <li><a href="n-kafka.html">N · Kafka</a> <span>dark + teal, 4 brokers × 6 partitions RF3, ISR + high watermark, KRaft controllers, consumer group rebalances</span></li>
+      <li><a href="o-etcd.html">O · etcd</a> <span>dark + etcd blue, kube-scheduler leader election via leases, raft inside etcd, watch streams to kubelets</span></li>
+      <li><a href="/"><b>The live site</b></a> <span>built from P, now at the repo root · <a href="phones.html">phone preview</a></span></li>
+      <li><a href="p-ring-avl.html">P · Ring + AVL</a> <span>dark, consistent hash ring backed by an AVL tree; lookups are ceiling searches, joins/leaves show inserts, deletes and rotations step by step</span></li>
+      <li><a href="q-quicksilver.html">Q · Quicksilver</a> <span>dark + orange, a config write fans out core → regional relays → every city; one city retries; p50/p99 propagation</span></li>
+      <li><a href="r-durable-objects.html">R · Durable Objects</a> <span>dark + pink, each object lives in exactly one city; traffic follows the sun and objects migrate toward their users</span></li>
+      <li><a href="s-tracing.html">S · Tracing</a> <span>dark + violet, a live trace waterfall for POST /checkout; fan-out, cache misses, a timeout + retry, critical path</span></li>
+      <li><a href="t-cluster.html">T · This page is a cluster</a> <span>dark + sky, every open tab is a real node (BroadcastChannel); heartbeats, leader election, a shared G-counter you can click</span></li>
+      <li><a href="u-dynamodb.html">U · DynamoDB</a> <span>dark + green, partitions as 3-AZ Paxos groups; 2/3 write quorum, strong vs eventual reads, hot partition splits, AZ outage</span></li>
+    </ul>
+  </body>
+</html>

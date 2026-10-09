@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock H · Paxos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0d0f14;
+        --ink: #e2e8f0;
+        --mid: rgba(226, 232, 240, 0.58);
+        --dim: rgba(226, 232, 240, 0.3);
+        --accent: #7dd3e8;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Martian Mono", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 6vw; top: 50%; transform: translateY(-50%); max-width: 34ch; }
+      h1 { font-size: 20px; font-weight: 500; }
+      p { margin-top: 18px; color: var(--mid); line-height: 1.8; }
+      nav { margin-top: 22px; display: grid; grid-template-columns: repeat(3, max-content); gap: 8px 22px; }
+      a { color: var(--ink); text-decoration: none; }
+      a::before { content: "→ "; color: var(--accent); }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 6vw; right: 6vw; bottom: 26px;
+        display: flex; justify-content: space-between; gap: 20px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 6vh; transform: none; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">paxos</span>
+      <span>p prepare · o promise · a accept · + accepted · ! rejected</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const NA = 5, MAJ = 3, LW = 26;
+      const INK = (a) => `rgba(226,232,240,${a})`;
+      const CY = (a) => `rgba(125,211,232,${a})`;
+      const VALUES = "abcdefghjkmnpqrstuvwxyz";
+      const statusEl = document.getElementById("status");
+
+      let P, A, msgs, trail, slot, log, chosen, duels, nextSlotAt, ax, py, pxs;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const color = (p, a) => (p.id === 0 ? INK(a) : CY(a));
+
+      function send(g, kind, from, to, data, owner) {
+        msgs.push({ kind, from, to, slot, owner, ...data, t0: g.t, dur: rnd(5, 17) });
+      }
+
+      function startSlot(g) {
+        slot++;
+        A.forEach((a) => { a.promised = -1; a.acc = null; });
+        P.forEach((p) => { p.phase = "idle"; p.retryAt = g.t + rnd(2, 8); p.maxSeen = -1; p.round = 0; });
+        chosen = null; duels = 0; nextSlotAt = null;
+      }
+
+      function receive(g, m) {
+        if (m.slot !== slot) return;
+        if (m.kind === "p" || m.kind === "a") {
+          const a = A[m.to];
+          if (m.kind === "p" && m.n > a.promised) {
+            a.promised = m.n;
+            send(g, "o", m.to, m.owner, { n: m.n, acc: a.acc }, m.owner);
+          } else if (m.kind === "a" && m.n >= a.promised) {
+            a.promised = m.n; a.acc = { n: m.n, v: m.v };
+            send(g, "+", m.to, m.owner, { n: m.n }, m.owner);
+          } else {
+            send(g, "!", m.to, m.owner, { n: m.n, promised: a.promised }, m.owner);
+          }
+          return;
+        }
+        const p = P[m.to];
+        if (m.kind === "!") {
+          p.maxSeen = Math.max(p.maxSeen, m.promised);
+          if (m.n === p.ballot && (p.phase === "prep" || p.phase === "acc")) {
+            p.phase = "idle"; duels++; p.retryAt = g.t + rnd(4, 34);
+          }
+        } else if (m.kind === "o" && p.phase === "prep" && m.n === p.ballot) {
+          p.promises++;
+          if (m.acc && (!p.best || m.acc.n > p.best.n)) p.best = m.acc;
+          if (p.promises >= MAJ) {
+            p.phase = "acc";
+            p.value = p.best ? p.best.v : p.own;
+            A.forEach((_, i) => send(g, "a", p.id, i, { n: p.ballot, v: p.value }, p.id));
+          }
+        } else if (m.kind === "+" && p.phase === "acc" && m.n === p.ballot) {
+          p.acks++;
+          if (p.acks >= MAJ && !chosen) {
+            chosen = { v: p.value, n: p.ballot, by: p.id };
+            p.phase = "done";
+            log.push({ slot, v: p.value, by: p.id });
+            if (log.length > 40) log.shift();
+            nextSlotAt = g.t + 45;
+          }
+        }
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Martian Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.6,
+        fps: 14,
+        bg: "#0d0f14",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 120;
+          const left = narrow ? 1 : Math.floor(g.cols * 0.4);
+          const right = g.cols - 3;
+          pxs = [left, right - 16];
+          ax = Math.floor((left + 16 + right - 16) / 2 - LW / 2);
+          const top = narrow ? Math.floor(g.rows * 0.45) : Math.floor(g.rows * 0.2);
+          const bot = narrow ? g.rows - 8 : Math.floor(g.rows * 0.74);
+          A = Array.from({ length: NA }, (_, i) => ({ y: Math.round(top + (i * (bot - top)) / (NA - 1)) }));
+          py = Math.round((top + bot) / 2);
+          P = [0, 1].map((id) => ({ id, own: "" }));
+          msgs = []; log = []; slot = 40;
+          trail = new Float32Array(g.cols * g.rows * 2);
+          startSlot(g);
+        },
+        tick(g) {
+          g.t++;
+          if (nextSlotAt && g.t >= nextSlotAt) startSlot(g);
+
+          P.forEach((p) => {
+            if (chosen) return;
+            if (p.phase === "idle" && g.t >= p.retryAt) {
+              p.round = Math.max(p.round + 1, Math.floor(p.maxSeen / 2) + 1);
+              p.ballot = p.round * 2 + p.id;
+              p.phase = "prep"; p.promises = 0; p.acks = 0; p.best = null; p.started = g.t;
+              p.own = VALUES[rnd(0, VALUES.length)];
+              A.forEach((_, i) => send(g, "p", p.id, i, { n: p.ballot }, p.id));
+            } else if ((p.phase === "prep" || p.phase === "acc") && g.t - p.started > 80) {
+              p.phase = "idle"; p.retryAt = g.t + rnd(4, 30);
+            }
+          });
+
+          for (let i = 0; i < trail.length; i++) trail[i] *= 0.84;
+          const arrived = [];
+          msgs = msgs.filter((m) => {
+            const f = (g.t - m.t0) / m.dur;
+            if (f >= 1) { arrived.push(m); return false; }
+            const toAcc = m.kind === "p" || m.kind === "a";
+            const pid = m.owner, aid = toAcc ? m.to : m.from;
+            const pxEdge = pid === 0 ? pxs[0] + 15 : pxs[1] - 2;
+            const axEdge = pid === 0 ? ax - 2 : ax + LW + 1;
+            const [x0, y0, x1, y1] = toAcc ? [pxEdge, py, axEdge, A[aid].y] : [axEdge, A[aid].y, pxEdge, py];
+            m.x = x0 + (x1 - x0) * f; m.y = y0 + (y1 - y0) * f;
+            const cx = Math.round(m.x), cy = Math.round(m.y);
+            if (cx >= 0 && cy >= 0 && cx < g.cols && cy < g.rows) trail[(cy * g.cols + cx) * 2 + pid] = 1;
+            return true;
+          });
+          arrived.forEach((m) => receive(g, m));
+
+          const live = P.filter((p) => p.phase === "prep" || p.phase === "acc").length;
+          statusEl.innerHTML = chosen
+            ? `slot ${slot} · <b>chosen ${chosen.v}</b> at ballot ${chosen.n} · ${duels} preempted`
+            : `slot ${slot} · ${live > 1 ? "<b>duelling proposers</b>" : "proposing"} · ${duels} preempted`;
+        },
+        draw(g) {
+          for (let y = 0; y < g.rows; y++)
+            for (let x = 0; x < g.cols; x++) {
+              const i = (y * g.cols + x) * 2;
+              if (trail[i] > 0.06) g.put(x, y, "·", INK(0.3 * trail[i]));
+              else if (trail[i + 1] > 0.06) g.put(x, y, "·", CY(0.35 * trail[i + 1]));
+            }
+
+          msgs.forEach((m) => g.put(m.x, m.y, m.kind, color(P[m.owner], m.kind === "!" ? 0.5 : 0.95)));
+
+          A.forEach((a, i) => {
+            const won = chosen && a.acc && a.acc.v === chosen.v && a.acc.n === chosen.n;
+            g.text(ax, a.y, `a${i + 1}`, INK(0.9));
+            g.text(ax + 4, a.y, `promised ${a.promised < 0 ? "-" : a.promised}`, INK(0.4));
+            const acc = a.acc ? `${a.acc.n}=${a.acc.v}` : "-";
+            g.text(ax + 17, a.y, acc, won ? CY(1) : a.acc ? INK(0.75) : INK(0.3));
+          });
+
+          P.forEach((p) => {
+            const x = pxs[p.id];
+            const state =
+              p.phase === "prep" ? `prepare ${p.ballot}` :
+              p.phase === "acc" ? `accept ${p.ballot}=${p.value}` :
+              p.phase === "done" ? `chosen ${p.value}` : "backoff";
+            g.text(x, py, `P${p.id + 1}`, color(p, 1));
+            g.text(x, py + 1, state, color(p, p.phase === "idle" ? 0.35 : 0.7));
+          });
+
+          const ly = Math.min(g.rows - 4, A[NA - 1].y + 4);
+          const fit = Math.floor((g.cols - pxs[0] - 6) / 4);
+          g.text(pxs[0], ly, "log", INK(0.35));
+          log.slice(-fit).forEach((e, k) => g.put(pxs[0] + 5 + k * 4, ly, e.v, color(P[e.by], 0.85)));
+        },
+      });
+    </script>
+  </body>
+</html>

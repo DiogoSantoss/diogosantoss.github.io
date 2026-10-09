@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock D · Raft</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Space+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #fafaf9;
+        --ink: #111111;
+        --mid: #57534e;
+        --accent: #e5484d;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Space Grotesk", system-ui, sans-serif; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 6vw; top: 9vh; max-width: 420px; }
+      h1 { font-size: clamp(34px, 4.4vw, 56px); font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
+      h1 span { color: var(--accent); }
+      p { margin-top: 18px; font-size: 16px; line-height: 1.55; color: var(--mid); }
+      nav { margin-top: 20px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 15px; font-weight: 500; }
+      a { color: var(--ink); text-decoration: none; border-bottom: 2px solid transparent; }
+      a:hover { border-color: var(--accent); }
+      footer {
+        position: fixed; left: 6vw; right: 6vw; bottom: 26px;
+        display: flex; justify-content: space-between; gap: 20px;
+        font-family: "Space Mono", monospace; font-size: 12px; color: var(--mid);
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 6vh; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos<span>.</span></h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">GitHub</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">LinkedIn</a>
+        <a href="https://x.com/l_Didas_l">X</a>
+        <a href="../cv-diogo-santos.pdf">CV</a>
+        <a href="../blog.html">Blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">raft · 5 servers</span>
+      <span>digit = entry term · bright = committed · ? vote · + granted</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const N = 5, MAJ = 3, HB = 10;
+      const INK = (a) => `rgba(17,17,17,${a})`;
+      const RED = (a) => `rgba(229,72,77,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let S, msgs, trail, rowY, boxX, logX, logW, nextCrash;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const timeout = (g) => g.t + rnd(40, 90);
+      const lastTerm = (s) => (s.log.length ? s.log[s.log.length - 1] : 0);
+
+      function send(g, from, to, m) {
+        msgs.push({ ...m, from, to, t0: g.t, dur: rnd(6, 20) });
+      }
+
+      function stepDown(g, s, term) {
+        s.term = term; s.role = "F"; s.votedFor = null; s.deadline = timeout(g);
+      }
+
+      function becomeLeader(g, s) {
+        s.role = "L"; s.flash = 1;
+        s.next = S.map(() => s.log.length);
+        s.match = S.map(() => 0);
+        s.lastHb = -999;
+      }
+
+      function replicate(g, s) {
+        S.forEach((f) => {
+          if (f === s) return;
+          const prev = s.next[f.i];
+          const entries = prev < s.log.length ? [s.log[prev]] : [];
+          send(g, s, f, { type: "AE", term: s.term, prev, prevTerm: prev ? s.log[prev - 1] : 0, entries, commit: s.commit });
+        });
+      }
+
+      function advanceCommit(s) {
+        for (let n = s.log.length; n > s.commit; n--) {
+          const count = 1 + S.filter((f) => f !== s && s.match[f.i] >= n).length;
+          if (count >= MAJ && s.log[n - 1] === s.term) { s.commit = n; return; }
+        }
+      }
+
+      function receive(g, m) {
+        const s = m.to;
+        if (!s.alive) return;
+        if (m.term > s.term) stepDown(g, s, m.term);
+        if (m.type === "AE") {
+          if (m.term < s.term) return send(g, s, m.from, { type: "AER", term: s.term, ok: false });
+          s.role = "F"; s.leader = m.from.i; s.deadline = timeout(g);
+          const ok = m.prev <= s.log.length && (m.prev === 0 || s.log[m.prev - 1] === m.prevTerm);
+          if (ok) {
+            s.log.length = m.prev;
+            s.log.push(...m.entries);
+            s.commit = Math.max(s.commit, Math.min(m.commit, s.log.length));
+          }
+          send(g, s, m.from, { type: "AER", term: s.term, ok, match: m.prev + m.entries.length });
+        } else if (m.type === "AER") {
+          if (s.role !== "L" || m.term !== s.term) return;
+          const f = m.from.i;
+          if (m.ok) { s.match[f] = Math.max(s.match[f], m.match); s.next[f] = s.match[f]; advanceCommit(s); }
+          else s.next[f] = Math.max(0, s.next[f] - 1);
+        } else if (m.type === "RV") {
+          const upToDate = m.lastTerm > lastTerm(s) || (m.lastTerm === lastTerm(s) && m.lastIndex >= s.log.length);
+          const grant = m.term >= s.term && (s.votedFor === null || s.votedFor === m.from.i) && upToDate;
+          if (grant) { s.votedFor = m.from.i; s.deadline = timeout(g); }
+          send(g, s, m.from, { type: "RVR", term: s.term, grant });
+        } else if (m.type === "RVR") {
+          if (s.role !== "C" || m.term !== s.term || !m.grant) return;
+          s.votes++;
+          if (s.votes >= MAJ) becomeLeader(g, s);
+        }
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Space Mono", monospace',
+        fontSize: 13,
+        lineHeight: 1.4,
+        fps: 14,
+        bg: "#fafaf9",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 100;
+          boxX = narrow ? 3 : Math.floor(g.cols * 0.42);
+          logX = boxX + 16;
+          logW = Math.max(6, Math.floor((g.cols - logX - 4) / 2));
+          const top = narrow ? Math.floor(g.rows * 0.5) : Math.floor(g.rows * 0.18);
+          const bottom = Math.floor(g.rows * 0.8);
+          rowY = Array.from({ length: N }, (_, k) => Math.round(top + (k * (bottom - top)) / (N - 1)));
+          S = Array.from({ length: N }, (_, i) => ({
+            i, role: "F", term: 0, votedFor: null, votes: 0, log: [], commit: 0,
+            alive: true, deadline: g.t + rnd(10, 50), flash: 0, leader: null,
+          }));
+          msgs = [];
+          trail = new Float32Array(g.cols * g.rows);
+          nextCrash = g.t + 260;
+        },
+        tick(g) {
+          g.t++;
+          const leader = S.find((s) => s.alive && s.role === "L");
+
+          if (g.t >= nextCrash) {
+            if (leader) { leader.alive = false; leader.downUntil = g.t + 120; }
+            nextCrash = g.t + rnd(300, 420);
+          }
+          S.forEach((s) => {
+            if (!s.alive && g.t >= s.downUntil) { s.alive = true; s.role = "F"; s.deadline = timeout(g); }
+            if (!s.alive) return;
+            if (s.role === "L") {
+              if (Math.random() < 0.07 && s.log.length - s.commit < 6) s.log.push(s.term);
+              if (g.t - s.lastHb >= HB) { s.lastHb = g.t; replicate(g, s); }
+            } else if (g.t >= s.deadline) {
+              s.role = "C"; s.term++; s.votedFor = s.i; s.votes = 1; s.deadline = timeout(g);
+              S.forEach((f) => f !== s && send(g, s, f, { type: "RV", term: s.term, lastIndex: s.log.length, lastTerm: lastTerm(s) }));
+            }
+            s.flash *= 0.92;
+          });
+
+          for (let i = 0; i < trail.length; i++) trail[i] *= 0.85;
+          const arrived = [];
+          msgs = msgs.filter((m) => {
+            const p = (g.t - m.t0) / m.dur;
+            if (p >= 1) { arrived.push(m); return false; }
+            const ax = tailX(m.from), bx = tailX(m.to);
+            m.x = ax + (bx - ax) * p;
+            m.y = rowY[m.from.i] + (rowY[m.to.i] - rowY[m.from.i]) * p;
+            const cx = Math.round(m.x), cy = Math.round(m.y);
+            if (cx >= 0 && cy >= 0 && cx < g.cols && cy < g.rows) trail[cy * g.cols + cx] = 1;
+            return true;
+          });
+          arrived.forEach((m) => receive(g, m));
+
+          const L = S.find((s) => s.alive && s.role === "L");
+          const term = Math.max(...S.map((s) => s.term));
+          statusEl.innerHTML = L
+            ? `term ${term} · leader <b>s${L.i + 1}</b> · commit ${L.commit}`
+            : `term ${term} · <b>election in progress</b>`;
+        },
+        draw(g) {
+          for (let y = 0; y < g.rows; y++)
+            for (let x = 0; x < g.cols; x++) {
+              const v = trail[y * g.cols + x];
+              if (v > 0.06) g.put(x, y, "·", INK(0.3 * v));
+            }
+
+          const maxLen = Math.max(...S.map((s) => s.log.length));
+          const off = Math.max(0, maxLen - logW + 2);
+          S.forEach((s) => {
+            const y = rowY[s.i];
+            const role = !s.alive ? "down" : s.role === "L" ? "leader" : s.role === "C" ? "candidate" : "follower";
+            const c = !s.alive ? INK(0.2) : s.role === "L" ? RED(1) : s.role === "C" ? RED(0.6) : INK(0.85);
+            g.text(boxX, y, `s${s.i + 1}`, c);
+            g.text(boxX + 3, y, role, c);
+            g.text(boxX + 13, y, String(s.term % 100), INK(0.35));
+            for (let k = off; k < s.log.length; k++) {
+              const ch = String(s.log[k] % 10);
+              const col = !s.alive ? INK(0.15) : k < s.commit ? INK(0.9) : INK(0.3);
+              g.put(logX + (k - off) * 2, y, ch, col);
+            }
+            if (s.flash > 0.1) g.put(logX - 2, y, "<", RED(s.flash));
+          });
+
+          const glyph = { RV: "?", RVR: "+", AER: "·" };
+          msgs.forEach((m) => {
+            if (m.type === "AER" || (m.type === "RVR" && !m.grant)) return;
+            const ch = m.type === "AE" ? (m.entries.length ? String(m.entries[0] % 10) : "-") : glyph[m.type];
+            g.put(m.x, m.y, ch, m.type === "AE" ? INK(0.75) : RED(0.9));
+          });
+        },
+      });
+
+      function tailX(s) {
+        const maxLen = Math.max(...S.map((x) => x.log.length));
+        const off = Math.max(0, maxLen - logW + 2);
+        return logX + Math.max(0, s.log.length - off) * 2;
+      }
+    </script>
+  </body>
+</html>

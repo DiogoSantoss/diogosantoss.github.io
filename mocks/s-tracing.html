@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock S · Tracing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Red+Hat+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0c0e;
+        --ink: #e7e9ec;
+        --mid: rgba(231, 233, 236, 0.58);
+        --dim: rgba(231, 233, 236, 0.3);
+        --accent: #a78bfa;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Red Hat Mono", ui-monospace, monospace; font-size: 13px; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; top: 50%; transform: translateY(-50%); max-width: 30ch; }
+      h1 { font-size: 22px; font-weight: 500; }
+      p { margin-top: 14px; color: var(--mid); line-height: 1.7; font-weight: 300; }
+      nav { margin-top: 18px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 5vw; right: 5vw; bottom: 22px;
+        display: flex; justify-content: space-between; gap: 20px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span>━ span · ▸ in progress · highlighted = critical path · ! error · ↻ retry</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const INK = (a) => `rgba(231,233,236,${a})`;
+      const VIO = (a) => `rgba(167,139,250,${a})`;
+      const statusEl = document.getElementById("status");
+      const MS_PER_TICK = 0.7, HOLD = 50;
+
+      let X0, W, LW, Y0, trace, now, phase, holdUntil, count, history;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const hex = (n) => Array.from({ length: n }, () => "0123456789abcdef"[rnd(0, 16)]).join("");
+
+      function span(svc, op, start, dur, depth, extra = {}) {
+        return { svc, op, start, end: start + dur, depth, children: [], ...extra };
+      }
+
+      // Builds one plausible checkout trace. Child timings are computed before the parent end.
+      function buildTrace() {
+        const spans = [];
+        const add = (s, parent) => { spans.push(s); if (parent) parent.children.push(s); return s; };
+        const root = add(span("edge", "POST /checkout", 0, 0, 0));
+        const gw = add(span("gateway", "route /checkout", 2, 0, 1), root);
+
+        const auth = add(span("auth", "verify jwt", gw.start + 1, 0, 2), gw);
+        const sess = add(span("kv", "get session:" + hex(4), auth.start + 1, rnd(2, 6), 3), auth);
+        auth.end = sess.end + rnd(1, 3);
+
+        let t = auth.end + 1;
+        const fan = [];
+        const cart = add(span("cart", "load cart", t, 0, 2), gw);
+        const c1 = add(span("kv", "get cart:" + rnd(1000, 9999), cart.start + 1, rnd(2, 8), 3), cart);
+        const c2 = add(span("db", "select items", c1.end + 1, rnd(6, 22), 3), cart);
+        cart.end = c2.end + 1; fan.push(cart);
+
+        const pricing = add(span("pricing", "quote", t + rnd(0, 2), 0, 2), gw);
+        const miss = Math.random() < 0.4;
+        const p1 = add(span("cache", miss ? "get rates (miss)" : "get rates (hit)", pricing.start + 1, rnd(1, 4), 3), pricing);
+        let pe = p1.end;
+        if (miss) { const p2 = add(span("db", "select rates", p1.end + 1, rnd(10, 30), 3), pricing); pe = p2.end; }
+        pricing.end = pe + rnd(1, 4); fan.push(pricing);
+
+        const inv = add(span("inventory", "reserve", t + rnd(0, 3), 0, 2), gw);
+        const fail = Math.random() < 0.35;
+        let ie;
+        if (fail) {
+          const a1 = add(span("db", "update stock", inv.start + 1, rnd(25, 40), 3, { error: "timeout" }), inv);
+          const a2 = add(span("db", "update stock", a1.end + rnd(3, 8), rnd(6, 14), 3, { retry: true }), inv);
+          ie = a2.end;
+        } else {
+          const a1 = add(span("db", "update stock", inv.start + 1, rnd(6, 16), 3), inv);
+          ie = a1.end;
+        }
+        const q = add(span("queue", "publish reserved", ie + 1, rnd(2, 6), 3), inv);
+        inv.end = q.end + 1; fan.push(inv);
+
+        gw.end = Math.max(...fan.map((s) => s.end)) + rnd(1, 4);
+        root.end = gw.end + rnd(1, 3);
+
+        // critical path: from the root, always follow the child that finishes last
+        let n = root;
+        while (n) { n.critical = true; n = n.children.reduce((b, c) => (!b || c.end > b.end ? c : b), null); }
+
+        const order = [];
+        const walk = (s) => { order.push(s); [...s.children].sort((a, b) => a.start - b.start).forEach(walk); };
+        walk(root);
+        return { id: hex(16), spans: order, total: root.end, errors: order.filter((s) => s.error).length };
+      }
+
+      function startTrace(g) {
+        trace = buildTrace();
+        now = 0; phase = "play"; count++;
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Red Hat Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.6,
+        fps: 14,
+        bg: "#0b0c0e",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 110;
+          X0 = narrow ? 2 : Math.floor(g.cols * 0.32);
+          W = g.cols - X0 - 4;
+          LW = 32;
+          Y0 = narrow ? Math.floor(g.rows * 0.42) : Math.floor(g.rows * 0.16);
+          count = 0; history = [];
+          startTrace(g);
+        },
+        tick(g) {
+          g.t++;
+          if (phase === "play") {
+            now += MS_PER_TICK;
+            if (now >= trace.total) { now = trace.total; phase = "hold"; holdUntil = g.t + HOLD; history.unshift(trace); history = history.slice(0, 12); }
+          } else if (g.t >= holdUntil) startTrace(g);
+
+          const p50 = history.length ? [...history].map((t) => t.total).sort((a, b) => a - b)[Math.floor(history.length / 2)] : 0;
+          statusEl.innerHTML = `trace ${trace.id} · ${trace.spans.length} spans · ` +
+            (phase === "play" ? `<b>${Math.round(now)}ms…</b>` : `<b>${trace.total}ms</b>`) +
+            (trace.errors && phase === "hold" ? ` · ${trace.errors} error, retried` : "") +
+            ` · p50 of last ${history.length}: ${p50}ms`;
+        },
+        draw(g) {
+          const scale = (W - LW - 2) / trace.total;
+          const bx = (ms) => X0 + LW + Math.round(ms * scale);
+          const head = INK(0.35);
+
+          g.text(X0, Y0 - 4, `POST /checkout  ·  trace ${trace.id.slice(0, 8)}`, INK(0.75));
+          const ticks = new Set();
+          for (let ms = 0; ms <= trace.total; ms += 10) {
+            ticks.add(bx(ms));
+            g.text(bx(ms), Y0 - 2, `${ms}ms`, INK(0.25));
+          }
+          for (let x = X0 + LW; x <= bx(trace.total); x++) g.put(x, Y0 - 1, ticks.has(x) ? "┬" : "─", ticks.has(x) ? head : INK(0.15));
+
+          trace.spans.forEach((s, i) => {
+            const y = Y0 + i;
+            if (s.start > now) {
+              g.text(X0 + s.depth * 2, y, s.svc, INK(0.15));
+              return;
+            }
+            const done = s.end <= now;
+            const crit = phase === "hold" && s.critical;
+            const lc = crit ? VIO(1) : INK(0.8);
+            g.text(X0 + s.depth * 2, y, s.svc, lc);
+            g.text(X0 + s.depth * 2 + s.svc.length + 1, y, s.op.slice(0, LW - s.depth * 2 - s.svc.length - 2), INK(0.4));
+            const a = bx(s.start), b = bx(Math.min(now, s.end));
+            const col = crit ? VIO(0.95) : s.error ? INK(0.35) : INK(0.65);
+            for (let x = a; x <= Math.max(a, b); x++) g.put(x, y, "━", col);
+            if (!done) g.put(b + 1, y, "▸", VIO(0.9));
+            else {
+              const label = `${s.end - s.start}ms`;
+              g.text(b + 2, y, s.error ? `! ${s.error}` : s.retry ? `↻ ${label}` : label, s.error ? VIO(1) : INK(0.3));
+            }
+          });
+
+          const nowX = bx(now);
+          if (phase === "play") for (let y = Y0; y < Y0 + trace.spans.length; y++) if (y % 2 === 0) g.put(nowX, y, "┊", VIO(0.35));
+
+          const hy = Y0 + trace.spans.length + 3;
+          if (history.length) {
+            g.text(X0, hy, "recent", INK(0.3));
+            const max = Math.max(...history.map((t) => t.total));
+            history.slice(0, 10).forEach((t, i) => {
+              const len = Math.max(1, Math.round((t.total / max) * 24));
+              g.text(X0 + 8, hy + i, "▪".repeat(len), i === 0 && phase === "hold" ? VIO(0.9) : INK(0.25));
+              g.text(X0 + 34, hy + i, `${t.total}ms${t.errors ? " !" : ""}`, INK(0.3));
+            });
+          }
+        },
+      });
+    </script>
+  </body>
+</html>

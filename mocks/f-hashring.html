@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock F · Hash ring</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #ececea;
+        --ink: #171717;
+        --mid: #525252;
+        --accent: #f38020;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "DM Sans", system-ui, sans-serif; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 6vw; top: 50%; transform: translateY(-50%); max-width: 380px; }
+      h1 { font-size: clamp(36px, 4.6vw, 60px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+      p { margin-top: 18px; font-size: 16px; line-height: 1.6; color: var(--mid); }
+      nav { margin-top: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 500; }
+      a { color: var(--ink); text-decoration: none; width: fit-content; }
+      a::after { content: " ↗"; color: var(--mid); }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; right: 6vw; bottom: 26px; text-align: right;
+        font-family: "DM Mono", monospace; font-size: 12px; color: var(--mid); line-height: 1.7;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 6vh; transform: none; }
+        nav { flex-direction: row; gap: 16px; flex-wrap: wrap; }
+        footer { right: 24px; left: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">GitHub</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">LinkedIn</a>
+        <a href="https://x.com/l_Didas_l">X</a>
+        <a href="../cv-diogo-santos.pdf">CV</a>
+        <a href="../blog.html">Blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <div>consistent hashing · 2 vnodes per server</div>
+      <div id="status">—</div>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const TAU = Math.PI * 2, VN = 2;
+      const INK = (a) => `rgba(23,23,23,${a})`;
+      const ORA = (a) => `rgba(243,128,32,${a})`;
+      const statusEl = document.getElementById("status");
+      const NAMES = "abcdefghijklmnopqrstuvwxyz";
+
+      let cx, cy, R, ringCells, servers, keys, routed, lastChange, nextChange, nameIdx;
+
+      const norm = (a) => ((a % TAU) + TAU) % TAU;
+      const ringPt = (a) => [cx + R * Math.cos(a), cy + (R / 2.1) * Math.sin(a)];
+
+      function points() {
+        return servers.flatMap((s) => s.v.map((a) => ({ a, s }))).sort((p, q) => p.a - q.a);
+      }
+      function owner(pts, a) {
+        return pts.find((p) => p.a >= a) || pts[0];
+      }
+
+      function addServer(g) {
+        const s = { name: NAMES[nameIdx++ % 26], v: Array.from({ length: VN }, () => Math.random() * TAU), flash: 1, born: g.t, load: 0 };
+        servers.push(s);
+        return s;
+      }
+
+      function ownedFraction(s) {
+        const pts = points();
+        let f = 0;
+        pts.forEach((p, i) => {
+          if (p.s !== s) return;
+          const prev = pts[(i - 1 + pts.length) % pts.length].a;
+          f += norm(p.a - prev) / TAU;
+        });
+        return f;
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"DM Mono", monospace',
+        fontSize: 13,
+        lineHeight: 1.4,
+        fps: 14,
+        bg: "#ececea",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 100;
+          cx = narrow ? g.cols / 2 : g.cols * 0.64;
+          cy = narrow ? g.rows * 0.66 : g.rows * 0.48;
+          R = Math.min(narrow ? g.cols * 0.4 : g.cols * 0.25, g.rows * (narrow ? 0.6 : 0.82));
+          ringCells = [];
+          const steps = Math.ceil(TAU * R * 1.2);
+          for (let i = 0; i < steps; i++) {
+            const a = (i / steps) * TAU;
+            const [x, y] = ringPt(a);
+            ringCells.push({ a, x: Math.round(x), y: Math.round(y) });
+          }
+          servers = []; keys = []; routed = 0; nameIdx = 0;
+          for (let i = 0; i < 5; i++) addServer(g).flash = 0;
+          lastChange = null;
+          nextChange = g.t + 90;
+        },
+        tick(g) {
+          g.t++;
+          if (g.t >= nextChange) {
+            const leave = servers.length > 6 || (servers.length > 3 && Math.random() < 0.5);
+            if (leave) {
+              const s = servers[Math.floor(Math.random() * servers.length)];
+              lastChange = `-${s.name} · ${(ownedFraction(s) * 100).toFixed(1)}% of keys moved`;
+              servers = servers.filter((x) => x !== s);
+            } else {
+              const s = addServer(g);
+              lastChange = `+${s.name} · ${(ownedFraction(s) * 100).toFixed(1)}% of keys moved`;
+            }
+            nextChange = g.t + 80 + Math.floor(Math.random() * 60);
+          }
+
+          for (let i = 0; i < 2; i++) {
+            const side = Math.random() * TAU;
+            const dist = R * (1.7 + Math.random() * 0.6);
+            keys.push({
+              x: cx + dist * Math.cos(side), y: cy + (dist / 2.1) * Math.sin(side),
+              h: Math.random() * TAU, state: "in", speed: 0.06 + Math.random() * 0.05,
+            });
+          }
+
+          const pts = points();
+          keys = keys.filter((k) => {
+            if (k.state === "in") {
+              const [tx, ty] = ringPt(k.h);
+              k.x += (tx - k.x) * k.speed * 1.6;
+              k.y += (ty - k.y) * k.speed * 1.6;
+              if (Math.hypot(tx - k.x, (ty - k.y) * 2) < 1.2) { k.state = "walk"; k.a = k.h; }
+              return true;
+            }
+            const o = owner(pts, k.a);
+            const d = norm(o.a - k.a);
+            if (d < 0.05) { o.s.flash = Math.min(1, o.s.flash + 0.12); o.s.load++; routed++; return false; }
+            k.a = norm(k.a + Math.min(d, 0.05));
+            [k.x, k.y] = ringPt(k.a);
+            return true;
+          });
+
+          servers.forEach((s) => (s.flash *= 0.9));
+          statusEl.innerHTML = `${servers.length} servers · ${routed} keys routed` + (lastChange ? ` · <b>${lastChange}</b>` : "");
+        },
+        draw(g) {
+          const pts = points();
+          ringCells.forEach((c) => {
+            const o = owner(pts, c.a);
+            const fresh = g.t - o.s.born < 40 && o.s.born > 0;
+            g.put(c.x, c.y, fresh ? "=" : "·", fresh ? ORA(0.8) : INK(0.28));
+          });
+          keys.forEach((k) => g.put(k.x, k.y, k.state === "in" ? "." : "*", k.state === "in" ? INK(0.45) : ORA(0.9)));
+          pts.forEach((p) => {
+            const [x, y] = ringPt(p.a);
+            const ox = Math.cos(p.a) * 3, oy = Math.sin(p.a) * 1.4;
+            g.put(x, y, "◆", p.s.flash > 0.45 ? ORA(1) : INK(0.9));
+            g.text(x + ox - 1, y + oy, `[${p.s.name}]`, p.s.flash > 0.45 ? ORA(1) : INK(0.7));
+          });
+        },
+      });
+    </script>
+  </body>
+</html>

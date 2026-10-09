@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock U · DynamoDB</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Overpass+Mono:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0b0a;
+        --ink: #eae8e3;
+        --mid: rgba(234, 232, 227, 0.58);
+        --dim: rgba(234, 232, 227, 0.3);
+        --accent: #4ade80;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Overpass Mono", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; top: 50%; transform: translateY(-50%); max-width: 30ch; }
+      h1 { font-size: 22px; font-weight: 600; }
+      p { margin-top: 14px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 18px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 5vw; right: 5vw; bottom: 22px;
+        display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span>each partition = a 3-replica Paxos group, one per AZ · write commits on 2/3 · + strong read from leader · ~ eventual read may be stale · ▮ load</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { box, wire, particles, trails } from "./scene.js";
+
+      const AZ = ["us-east-1a", "us-east-1b", "us-east-1c"], MAXP = 8, HOT = 30;
+      const INK = (a) => `rgba(234,232,227,${a})`;
+      const GRN = (a) => `rgba(74,222,128,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let L, P, T, parts, azUp, hotKey, event, nextOutage, pid;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const hx = (n) => n.toString(16).padStart(2, "0");
+
+      function layout(g) {
+        const X0 = Math.floor(g.cols * 0.32), X1 = g.cols - 3;
+        const labelW = 16, gap = 4;
+        const azW = Math.floor((X1 - X0 - labelW - gap * 2) / 3);
+        const top = Math.floor(g.rows * 0.3);
+        return {
+          X0, X1, labelW, azW, top,
+          azX: [0, 1, 2].map((i) => X0 + labelW + i * (azW + gap)),
+          router: [X0 + labelW + Math.floor((3 * azW + 2 * gap) / 2) - 7, Math.floor(g.rows * 0.12)],
+          app: [X0, Math.floor(g.rows * 0.12)],
+        };
+      }
+
+      const rowY = (i) => L.top + 2 + i * 2;
+      const cell = (i, az, right = false) => [L.azX[az] + (right ? L.azW - 3 : 2), rowY(i)];
+      const partFor = (k) => parts.findIndex((p) => k >= p.lo && k < p.hi);
+      const mkPart = (lo, hi, lsn = 0, leader = rnd(0, 3)) => ({ id: pid++, lo, hi, leader, lsn: [lsn, lsn, lsn], load: [], electing: false });
+
+      function request(g) {
+        const write = Math.random() < 0.55;
+        const k = Math.random() < 0.45 ? (hotKey + rnd(-3, 4) + 256) % 256 : rnd(0, 256);
+        const i = partFor(k), p = parts[i];
+        p.load.push(g.t);
+        const [rx, ry] = [L.router[0] + 7, L.router[1] + 2];
+        if (write) {
+          if (p.electing || !azUp[p.leader]) return;
+          const ld = p.leader;
+          P.send(g, [[rx, ry], [rx, L.top - 1], [cell(i, ld)[0], L.top - 1], cell(i, ld)], {
+            glyph: "·", color: INK(0.8), speed: 3.2,
+            onArrive: () => {
+              if (p.leader !== ld || !azUp[ld]) return;
+              const lsn = ++p.lsn[ld];
+              let acks = 1;
+              [0, 1, 2].forEach((az) => {
+                if (az === ld) return;
+                P.send(g, [cell(parts.indexOf(p), ld, true), cell(parts.indexOf(p), az)], {
+                  glyph: "·", color: INK(0.45), speed: 3, jitter: 1.2,
+                  onArrive: () => {
+                    if (!azUp[az]) return;
+                    p.lsn[az] = Math.max(p.lsn[az], lsn);
+                    acks++;
+                    if (acks === 2) p.flash = 1;
+                  },
+                });
+              });
+            },
+          });
+        } else {
+          const strong = Math.random() < 0.35;
+          const az = strong ? p.leader : rnd(0, 3);
+          if (!azUp[az] || p.electing) return;
+          const path = [[rx, ry], [rx, L.top - 1], [cell(i, az)[0], L.top - 1], cell(i, az)];
+          P.send(g, path, {
+            glyph: "·", color: INK(0.4), speed: 3.6,
+            onArrive: () => {
+              const stale = !strong && p.lsn[az] < p.lsn[p.leader];
+              P.send(g, [...path].reverse(), { glyph: strong ? "+" : stale ? "~" : "·", color: strong ? GRN(0.95) : INK(stale ? 0.7 : 0.4), speed: 3.6, trail: false });
+            },
+          });
+        }
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Overpass Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0b0b0a",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          L = layout(g);
+          P = particles();
+          T = trails(g, 0.84);
+          pid = 0;
+          parts = [mkPart(0, 64, 410), mkPart(64, 128, 388), mkPart(128, 192, 402), mkPart(192, 256, 395)];
+          azUp = [true, true, true];
+          hotKey = rnd(0, 256);
+          event = "table orders · 4 partitions";
+          nextOutage = g.t + 420;
+        },
+        tick(g) {
+          g.t++;
+          if (g.t % 200 === 0) hotKey = rnd(0, 256);
+          for (let i = 0; i < 2; i++) if (Math.random() < 0.6) request(g);
+
+          parts.forEach((p, i) => {
+            p.load = p.load.filter((t) => g.t - t < 60);
+            p.flash = (p.flash || 0) * 0.88;
+            if (p.load.length > HOT && parts.length < MAXP && p.hi - p.lo > 4 && !p.electing) {
+              const mid = Math.floor((p.lo + p.hi) / 2);
+              const a = mkPart(p.lo, mid, Math.max(...p.lsn), p.leader);
+              const b = mkPart(mid, p.hi, Math.max(...p.lsn), (p.leader + 1) % 3);
+              a.flash = b.flash = 1;
+              parts.splice(i, 1, a, b);
+              event = `hot partition [${hx(p.lo)}-${hx(p.hi - 1)}] split at ${hx(mid)}`;
+            }
+          });
+
+          if (g.t >= nextOutage) {
+            const az = rnd(0, 3);
+            azUp[az] = false;
+            event = `${AZ[az]} unavailable`;
+            parts.forEach((p) => {
+              if (p.leader !== az) return;
+              p.electing = true;
+              setTimeoutTicks(g, 14, () => {
+                const cand = [0, 1, 2].filter((x) => azUp[x]).sort((x, y) => p.lsn[y] - p.lsn[x])[0];
+                p.leader = cand; p.electing = false; p.flash = 1;
+                event = `${AZ[az]} unavailable · leaders moved to surviving AZs`;
+              });
+            });
+            setTimeoutTicks(g, 180, () => { azUp[az] = true; event = `${AZ[az]} back · replicas catching up`; parts.forEach((p) => (p.lsn[az] = Math.max(p.lsn[az], Math.min(...p.lsn.filter((_, x) => x !== az))))); });
+            nextOutage = g.t + rnd(460, 600);
+          }
+          timers = timers.filter((t) => { if (g.t >= t.at) { t.fn(); return false; } return true; });
+
+          T.step();
+          P.step(g, T);
+          statusEl.innerHTML = `table orders · ${parts.length} partitions · ${azUp.filter(Boolean).length}/3 AZs up · hot key ${hx(hotKey)} · <b>${event}</b>`;
+        },
+        draw(g) {
+          box(g, L.app[0], L.app[1] - 1, 8, 3, INK(0.5));
+          g.text(L.app[0] + 2, L.app[1], "app", INK(0.8));
+          wire(g, [[L.app[0] + 8, L.app[1]], [L.router[0] - 1, L.router[1]]], INK(0.12));
+          box(g, L.router[0], L.router[1] - 1, 14, 3, INK(0.6));
+          g.text(L.router[0] + 2, L.router[1], "req router", INK(0.85));
+          wire(g, [[L.router[0] + 7, L.router[1] + 2], [L.router[0] + 7, L.top - 1]], INK(0.12));
+          wire(g, [[L.azX[0] + 2, L.top - 1], [L.azX[2] + 2, L.top - 1]], INK(0.12));
+
+          const h = parts.length * 2 + 3;
+          AZ.forEach((name, az) => {
+            const c = azUp[az] ? INK(0.45) : INK(0.15);
+            box(g, L.azX[az], L.top, L.azW, h, c, !azUp[az]);
+            g.text(L.azX[az] + 2, L.top + h, name, azUp[az] ? INK(0.5) : GRN(0.8));
+            if (!azUp[az]) g.text(L.azX[az] + L.azW - 6, L.top + h, "down", GRN(0.9));
+          });
+
+          T.draw(g, (v) => INK(0.22 * v));
+
+          parts.forEach((p, i) => {
+            const y = rowY(i);
+            const lc = p.flash > 0.4 ? GRN(1) : INK(0.75);
+            g.text(L.X0, y, `[${hx(p.lo)}-${hx(p.hi - 1)}]`, lc);
+            const n = Math.min(6, Math.ceil(p.load.length / 4));
+            g.text(L.X0 + 9, y, "▮".repeat(n), p.load.length > HOT * 0.7 ? GRN(0.9) : INK(0.3));
+            [0, 1, 2].forEach((az) => {
+              const [x] = cell(i, az);
+              const isL = p.leader === az && !p.electing;
+              const col = !azUp[az] ? INK(0.15) : isL ? GRN(1) : INK(0.6);
+              g.text(x, y, isL ? "L" : p.electing && p.leader === az ? "?" : "F", col);
+              g.text(x + 2, y, `lsn ${p.lsn[az]}`, !azUp[az] ? INK(0.15) : INK(0.4));
+            });
+          });
+
+          P.draw(g);
+        },
+      });
+
+      let timers = [];
+      function setTimeoutTicks(g, n, fn) { timers.push({ at: g.t + n, fn }); }
+    </script>
+  </body>
+</html>

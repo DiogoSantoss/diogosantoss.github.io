@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock P · Ring + AVL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0c0e;
+        --ink: #e9ebee;
+        --mid: rgba(233, 235, 238, 0.58);
+        --dim: rgba(233, 235, 238, 0.3);
+        --req: #6cb6ff;
+        --add: #5ee38a;
+        --del: #ff6b6b;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Spline Sans Mono", ui-monospace, monospace; font-size: 13px; }
+      canvas { position: fixed; inset: 0; }
+      .content {
+        position: fixed; left: 10vw; top: 50%; transform: translateY(-50%); max-width: 36ch;
+        background: var(--bg); border: 1px solid rgba(233, 235, 238, 0.14); padding: 24px 26px 22px;
+      }
+      h1 { font-size: 22px; font-weight: 600; }
+      p { margin-top: 16px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--req); }
+      footer {
+        position: fixed; left: 10vw; right: 5vw; bottom: 22px;
+        display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 11px;
+      }
+      .r { color: var(--req); } .a { color: var(--add); } .d { color: var(--del); }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span><span class="r">requests</span> land at their hash and walk clockwise to the owner · <span class="a">server joins</span> = AVL insert · <span class="d">server dies</span> = AVL delete · click a server to kill it · click the ring to add one · click anywhere else to send a request</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const SPACE = 4096, VN = 2, TAU = Math.PI * 2, LIFE = 26, MIN_GAP = Math.floor(SPACE / 22), MIN_S = 2, MAX_S = 7;
+      const INK = (a) => `rgba(233,235,238,${a})`;
+      const REQ = (a) => `rgba(108,182,255,${a})`;
+      const ADD = (a) => `rgba(94,227,138,${a})`;
+      const DEL = (a) => `rgba(255,107,107,${a})`;
+      const statusEl = document.getElementById("status");
+      const NAMES = "abcdefghijklmnopqrstuvwxyz";
+
+      let lastAuto = "remove";
+      let root, nid, servers, nameIdx, steps, cur, waitUntil, focus, msg, keys, lookups, ghosts, sparks, life, nextChange, mode, note, hover, userUntil;
+      let ringN = 600;
+      let X0, RW, cx, cy, R, ASP, treeY, gapY, slot, G;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const hex = (k) => k.toString(16).padStart(3, "0");
+      const label = (n) => `${n.srv}:${hex(n.k)}`;
+      const h = (n) => (n ? n.h : 0);
+      const upd = (n) => (n.h = 1 + Math.max(h(n.l), h(n.r)));
+      const bal = (n) => h(n.l) - h(n.r);
+      const depthOf = (n) => (n ? 1 + Math.max(depthOf(n.l), depthOf(n.r)) : 0);
+      const liveBal = (n) => depthOf(n.l) - depthOf(n.r);
+      const gap = (a, b) => { const d = Math.abs(a - b) % SPACE; return Math.min(d, SPACE - d); };
+      function inorder(n, out = []) { if (n) { inorder(n.l, out); out.push(n); inorder(n.r, out); } return out; }
+      const OP = (a) => (mode === "del" ? DEL(a) : ADD(a));
+
+      // ASP converts a horizontal radius (columns) into rows so the ring is a true circle
+      const angleOf = (k) => (k / SPACE) * TAU - Math.PI / 2;
+      const keyOf = (a) => Math.round((((a + Math.PI / 2) % TAU + TAU) % TAU) / TAU * SPACE) % SPACE;
+      const polar = (a, r) => [cx + r * Math.cos(a), cy + (r / ASP) * Math.sin(a)];
+      const ringPt = (k) => polar(angleOf(k), R);
+
+      function relayout() {
+        const list = inorder(root);
+        const set = (n, d) => { if (!n) return; n.d = d; set(n.l, d + 1); set(n.r, d + 1); };
+        set(root, 0);
+        const start = Math.round(cx - (list.length * slot) / 2);
+        list.forEach((n, i) => {
+          n.tx = start + i * slot;
+          n.ty = treeY + n.d * gapY;
+          if (n.x === undefined) { n.x = n.tx; n.y = n.ty - 2; }
+        });
+      }
+
+      function rotL(x) {
+        const y = x.r;
+        x.r = y.l; if (y.l) y.l.p = x;
+        y.p = x.p;
+        if (!x.p) root = y; else if (x === x.p.l) x.p.l = y; else x.p.r = y;
+        y.l = x; x.p = y; upd(x); upd(y);
+        return y;
+      }
+      function rotR(x) {
+        const y = x.l;
+        x.l = y.r; if (y.r) y.r.p = x;
+        y.p = x.p;
+        if (!x.p) root = y; else if (x === x.p.r) x.p.r = y; else x.p.l = y;
+        y.r = x; x.p = y; upd(x); upd(y);
+        return y;
+      }
+
+      function* fixup(n) {
+        while (n) {
+          upd(n);
+          const b = bal(n);
+          if (b > 1 || b < -1) {
+            yield { focus: [n], msg: `imbalance at ${label(n)} · bf ${b > 0 ? "+" : ""}${b}`, slow: true };
+            let top;
+            if (b > 1) {
+              if (bal(n.l) < 0) { const c = n.l; rotL(c); relayout(); yield { focus: [c, c.p], msg: `rotate left at ${label(c)} (left-right case)`, slow: true }; }
+              top = rotR(n); relayout();
+              yield { focus: [n, top], msg: `rotate right at ${label(n)}`, slow: true };
+            } else {
+              if (bal(n.r) > 0) { const c = n.r; rotR(c); relayout(); yield { focus: [c, c.p], msg: `rotate right at ${label(c)} (right-left case)`, slow: true }; }
+              top = rotL(n); relayout();
+              yield { focus: [n, top], msg: `rotate left at ${label(n)}`, slow: true };
+            }
+            n = top;
+          }
+          n = n.p;
+        }
+      }
+
+      function* insertOp(k, srv) {
+        let p = null, c = root;
+        while (c) { yield { focus: [c], msg: `insert ${srv}:${hex(k)} · ${hex(k)} ${k < c.k ? "<" : ">"} ${hex(c.k)}` }; p = c; c = k < c.k ? c.l : c.r; }
+        const n = { id: nid++, k, srv, l: null, r: null, p, h: 1, flash: 0 };
+        if (!p) root = n; else if (k < p.k) p.l = n; else p.r = n;
+        relayout();
+        yield { focus: [n], msg: `insert ${label(n)} as leaf · ring now routes to it` };
+        yield* fixup(p);
+      }
+
+      function* deleteOp(k) {
+        let c = root;
+        while (c && c.k !== k) { yield { focus: [c], msg: `delete ${hex(k)} · ${hex(k)} ${k < c.k ? "<" : ">"} ${hex(c.k)}` }; c = k < c.k ? c.l : c.r; }
+        if (!c) return;
+        yield { focus: [c], msg: `delete ${label(c)}`, slow: true };
+        let target = c;
+        ghosts.push({ x: c.x, y: c.y, text: label(c), t: 0 });
+        if (c.l && c.r) {
+          let s = c.r;
+          while (s.l) { yield { focus: [c, s], msg: `find successor of ${label(c)}` }; s = s.l; }
+          yield { focus: [c, s], msg: `successor ${label(s)} takes the place of ${label(c)}`, slow: true };
+          c.k = s.k; c.srv = s.srv; c.dying = s.dying;
+          target = s;
+        }
+        const child = target.l || target.r, p = target.p;
+        if (child) child.p = p;
+        if (!p) root = child; else if (p.l === target) p.l = child; else p.r = child;
+        relayout();
+        yield { focus: child ? [child] : [], msg: `unlink · retrace to root` };
+        yield* fixup(p);
+      }
+
+      function ceil(k) {
+        let c = root, best = null;
+        const path = [];
+        while (c) { path.push(c); if (k <= c.k) { best = c; c = c.l; } else c = c.r; }
+        if (!best) { best = root; while (best && best.l) best = best.l; }
+        return { node: best, path };
+      }
+      function liveOwner(k) {
+        let o = ceil(k).node;
+        for (let i = 0; o && o.dying && i < 64; i++) o = ceil((o.k + 1) % SPACE).node;
+        return o;
+      }
+
+      const taken = () => [...inorder(root).map((x) => x.k), ...life.filter((l) => l.kind === "boot").map((l) => l.k)];
+      const fits = (k, used = taken()) => used.every((u) => gap(u, k) >= MIN_GAP);
+      function freshPositions(n, seed = []) {
+        const used = taken();
+        const out = [...seed];
+        out.forEach((k) => used.push(k));
+        for (let tries = 0; out.length < n && tries < 500; tries++) {
+          const k = rnd(0, SPACE);
+          if (fits(k, used)) { used.push(k); out.push(k); }
+        }
+        return out;
+      }
+
+      function addServer(seed = []) {
+        const name = NAMES[nameIdx++ % 26];
+        const vs = freshPositions(VN, seed);
+        servers.push({ name, vs });
+        steps.push({ mode: "add", anim: () => vs.forEach((k) => life.push({ kind: "boot", k, srv: name, t: 0 })), wait: LIFE, msg: `server ${name} booting` });
+        vs.forEach((k) => steps.push({ mode: "add", gen: () => insertOp(k, name), label: `+${name}` }));
+      }
+
+      function removeServer(name) {
+        const i = name ? servers.findIndex((s) => s.name === name) : rnd(0, servers.length);
+        const s = servers.splice(i, 1)[0];
+        steps.push({
+          mode: "del",
+          anim: () => {
+            inorder(root).forEach((n) => { if (n.srv === s.name) n.dying = true; });
+            s.vs.forEach((k) => {
+              life.push({ kind: "die", k, srv: s.name, t: 0 });
+              const [x, y] = ringPt(k);
+              for (let j = 0; j < 7; j++) {
+                const a = Math.random() * TAU, v = 0.4 + Math.random() * 0.7;
+                sparks.push({ x, y, vx: Math.cos(a) * v, vy: (Math.sin(a) * v) / ASP, t: 0 });
+              }
+            });
+          },
+          wait: LIFE, msg: `server ${s.name} died · requests skip it`,
+        });
+        s.vs.forEach((k) => steps.push({ mode: "del", gen: () => deleteOp(k), label: `-${s.name}` }));
+      }
+
+      const busy = () => cur || steps.length || G.t < waitUntil;
+
+      function hitTest(px, py) {
+        if (!G) return null;
+        const gx = px / G.cw, gy = py / G.ch;
+        let best = null;
+        inorder(root).forEach((n) => {
+          if (n.dying) return;
+          const [x, y] = ringPt(n.k);
+          const d = Math.hypot(gx - x, (gy - y) * ASP);
+          if (d < 4 && (!best || d < best.d)) best = { kind: "server", node: n, d };
+        });
+        if (best) return best;
+        const r = Math.hypot(gx - cx, (gy - cy) * ASP);
+        if (Math.abs(r - R) < 5) return { kind: "ring", k: keyOf(Math.atan2((gy - cy) * ASP, gx - cx)) };
+        return null;
+      }
+
+      window.addEventListener("mousemove", (e) => {
+        if (e.target.closest(".content")) { hover = null; document.body.style.cursor = ""; return; }
+        hover = hitTest(e.clientX, e.clientY);
+        document.body.style.cursor = hover ? "pointer" : "crosshair";
+      });
+      window.addEventListener("click", (e) => {
+        if (e.target.closest(".content") || !G) return;
+        const hit = hitTest(e.clientX, e.clientY);
+        if (!hit) {
+          const gx = e.clientX / G.cw, gy = e.clientY / G.ch;
+          const a = Math.atan2((gy - cy) * ASP, gx - cx);
+          const r = Math.hypot(gx - cx, (gy - cy) * ASP);
+          keys.push({ k: keyOf(a), a: keyOf(a), r, v: 0.7, hist: [], state: "in", user: true, x: gx, y: gy });
+          return;
+        }
+        if (busy()) { note = { text: "busy · wait for the tree to settle", t: G.t }; return; }
+        if (hit.kind === "server") {
+          if (servers.length <= MIN_S) { note = { text: `keeping at least ${MIN_S} servers`, t: G.t }; return; }
+          removeServer(hit.node.srv);
+        } else {
+          if (servers.length >= MAX_S) { note = { text: `at most ${MAX_S} servers`, t: G.t }; return; }
+          if (!fits(hit.k)) { note = { text: "too close to another server", t: G.t }; return; }
+          addServer([hit.k]);
+        }
+        userUntil = G.t + 280;
+        nextChange = Math.max(nextChange, userUntil);
+      });
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Spline Sans Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0b0c0e",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          G = g;
+          const narrow = g.cols < 110;
+          ASP = g.ch / g.cw;
+          X0 = narrow ? 2 : Math.floor(g.cols * 0.36);
+          RW = g.cols - X0 - 3;
+          cy = Math.round(narrow ? g.rows * 0.68 : g.rows * 0.47);
+          R = Math.min(RW * 0.44, (narrow ? g.rows * 0.28 : g.rows * 0.41) * ASP);
+          cx = X0 + RW / 2;
+          slot = 8; gapY = 3;
+          ringN = Math.ceil(TAU * R * 1.6);
+          treeY = Math.round(cy - 2.5 * gapY);
+
+          root = null; nid = 0; servers = []; nameIdx = 0; steps = []; cur = null; waitUntil = 0; mode = "add";
+          keys = []; lookups = []; ghosts = []; sparks = []; life = []; focus = []; msg = "—"; note = null; userUntil = 0;
+          for (let i = 0; i < 5; i++) {
+            const name = NAMES[nameIdx++];
+            const vs = freshPositions(VN);
+            servers.push({ name, vs });
+            vs.forEach((k) => { const it = insertOp(k, name); while (!it.next().done); });
+          }
+          relayout();
+          inorder(root).forEach((n) => { n.x = n.tx; n.y = n.ty; });
+          nextChange = g.t + 140;
+        },
+        tick(g) {
+          g.t++;
+
+          if (!busy() && g.t >= nextChange && g.t >= userUntil) {
+            const n = servers.length;
+            const next = n <= MIN_S + 1 ? "add" : n >= MAX_S - 1 ? "remove" : lastAuto === "add" ? "remove" : "add";
+            next === "add" ? addServer() : removeServer();
+            lastAuto = next;
+            nextChange = g.t + rnd(300, 400);
+          }
+          if (!cur && steps.length && g.t >= waitUntil) {
+            const s = steps.shift();
+            mode = s.mode;
+            if (s.anim) { s.anim(); waitUntil = g.t + s.wait; msg = s.msg; focus = []; }
+            else { cur = { it: s.gen(), label: s.label }; waitUntil = g.t; }
+          }
+          if (cur && g.t >= waitUntil) {
+            const r = cur.it.next();
+            if (r.done) { cur = null; focus = []; if (!steps.length) waitUntil = g.t + 10; }
+            else { focus = r.value.focus || []; msg = r.value.msg; waitUntil = g.t + (r.value.slow ? 16 : 7); }
+          }
+
+          inorder(root).forEach((n) => {
+            n.x += (n.tx - n.x) * 0.22; n.y += (n.ty - n.y) * 0.22;
+            n.flash = (n.flash || 0) * 0.9;
+          });
+          ghosts.forEach((x) => x.t++); ghosts = ghosts.filter((x) => x.t < 14);
+          life.forEach((x) => x.t++); life = life.filter((x) => x.t < LIFE + 10);
+          sparks.forEach((s) => { s.t++; s.x += s.vx; s.y += s.vy; }); sparks = sparks.filter((s) => s.t < 18);
+
+          // requests come straight in from outside the ring, at the angle of their own hash
+          if (root && g.t % 14 === 0) {
+            const k = rnd(0, SPACE);
+            keys.push({ k, a: k, r: R * (1.2 + Math.random() * 0.35), v: 0.45 + Math.random() * 0.3, hist: [], state: "in" });
+          }
+          keys = keys.filter((key) => {
+            if (!root) return false;
+            if (key.state === "in") {
+              key.r = key.r > R ? Math.max(R, key.r - key.v) : Math.min(R, key.r + key.v);
+              [key.x, key.y] = polar(angleOf(key.k), key.r);
+              key.hist.unshift([key.x, key.y]); key.hist = key.hist.slice(0, 10);
+              if (Math.abs(key.r - R) < 0.01) {
+                key.state = "walk"; key.hit = g.t; key.hist = [];
+                if (key.user) { lookups = [{ path: ceil(key.k).path, t: g.t, user: true }]; note = { text: `GET ${hex(key.k)} → ${liveOwner(key.k).srv}`, t: g.t, ok: true }; }
+                else if (Math.random() < 0.12 && !lookups.length) lookups.push({ path: ceil(key.k).path, t: g.t });
+              }
+              return true;
+            }
+            const o = liveOwner(key.a);
+            const d = (o.k - key.a + SPACE) % SPACE;
+            if (d < 18) { o.flash = Math.min(1, (o.flash || 0) + 0.25); return false; }
+            key.a = (key.a + 18) % SPACE;
+            [key.x, key.y] = ringPt(key.a);
+            key.hist.unshift([key.x, key.y]); key.hist = key.hist.slice(0, 8);
+            return true;
+          });
+          lookups = lookups.filter((l) => g.t - l.t < (l.user ? 24 : 8));
+          if (note && g.t - note.t > 40) note = null;
+
+          const nodes = inorder(root);
+          const cls = mode === "del" ? "d" : "a";
+          statusEl.innerHTML = `${servers.length} servers · ${nodes.length} vnodes · tree height ${depthOf(root)} · ` +
+            (note ? `<span class="${note.ok ? "r" : "d"}">${note.text}</span>` : cur || g.t < waitUntil ? `<span class="${cls}">${cur ? cur.label + " · " : ""}${msg}</span>` : "balanced");
+        },
+        draw(g) {
+          const nodes = inorder(root);
+          const fset = new Set(focus);
+          const lset = new Set(lookups.flatMap((l) => l.path));
+          const hovering = (n) => hover && hover.kind === "server" && hover.node.srv === n.srv && !busy();
+
+          // 1. collect every label first so background layers can stay out from under them
+          const labels = [];
+          const addLabel = (x, y, text, color) => labels.push({ x: Math.round(x), y: Math.round(y), text, color });
+
+          nodes.forEach((n) => {
+            if (n.dying && life.some((l) => l.k === n.k && l.kind === "die")) return;
+            const [x, y] = ringPt(n.k);
+            const a = angleOf(n.k);
+            const hov = hovering(n);
+            const ox = Math.cos(a) * 4, oy = (Math.sin(a) * 4) / ASP;
+            const txt = hov ? `kill ${n.srv}` : `${n.srv}:${hex(n.k)}`;
+            const col = n.dying ? DEL(0.5) : hov ? DEL(1) : fset.has(n) ? OP(1) : n.flash > 0.5 ? REQ(0.95) : INK(0.6);
+            addLabel(x + ox - (ox < 0 ? txt.length - 1 : 0), y + oy, txt, col);
+          });
+          life.forEach((l) => {
+            const [x, y] = ringPt(l.k);
+            const f = l.t / LIFE;
+            if (l.kind === "boot") addLabel(x + 2, y - 1, `+${l.srv}:${hex(l.k)}`, ADD(0.95));
+            else addLabel(x + 2, y - 1, `-${l.srv}:${hex(l.k)}`, DEL(Math.max(0.35, 1 - f)));
+          });
+          keys.forEach((k) => { if (k.user) addLabel(k.x + 2, k.y - 1, `GET ${hex(k.k)}`, REQ(1)); });
+          if (hover && hover.kind === "ring" && !busy()) {
+            const [x, y] = ringPt(hover.k);
+            const ok = fits(hover.k) && servers.length < MAX_S;
+            addLabel(x + 2, y - 1, ok ? "add server" : "no room", ok ? ADD(0.95) : INK(0.45));
+          }
+          nodes.forEach((n) => {
+            const struct = fset.has(n);
+            const b = liveBal(n);
+            const txt = label(n) + (b !== 0 || struct ? ` ${b > 0 ? "+" : ""}${b}` : "");
+            const col = struct ? OP(1) : n.dying ? DEL(0.5) : lset.has(n) ? REQ(0.95) : Math.abs(b) > 1 ? OP(1) : INK(0.45);
+            addLabel(n.x, n.y, txt, col);
+          });
+
+          const occ = new Set();
+          labels.forEach((l) => { for (let i = -1; i <= l.text.length; i++) occ.add(l.y * g.cols + l.x + i); });
+          const put = (x, y, c, col) => { if (!occ.has(Math.round(y) * g.cols + Math.round(x))) g.put(x, y, c, col); };
+
+          // 2. background layers
+          const steps = ringN;
+          for (let i = 0; i < steps; i++) {
+            const k = (i / steps) * SPACE;
+            const [x, y] = ringPt(k);
+            const o = root ? ceil(k).node : null;
+            const hot = o && fset.has(o);
+            put(x, y, hot ? "=" : "·", hot ? OP(0.85) : o && o.dying ? DEL(0.25) : INK(0.24));
+          }
+
+          nodes.forEach((n) => {
+            [n.l, n.r].forEach((c) => {
+              if (!c) return;
+              const x0 = n.x + 2, y0 = n.y + 1, x1 = c.x + 2, y1 = c.y - 1;
+              const dx = x1 - x0, dy = y1 - y0, st = Math.max(Math.abs(dx), Math.abs(dy), 1);
+              const ch = Math.abs(dx) < Math.abs(dy) * 0.6 ? "|" : dx < 0 ? "/" : "\\";
+              const col = fset.has(n) && fset.has(c) ? OP(0.8) : lset.has(n) && lset.has(c) ? REQ(0.55) : INK(0.12);
+              for (let s = 0; s <= st; s++) put(x0 + (dx * s) / st, y0 + (dy * s) / st, ch, col);
+            });
+          });
+
+          keys.forEach((k) => {
+            if (k.state === "in") {
+              k.hist.forEach(([x, y], i) => i > 0 && put(x, y, "·", REQ((k.user ? 0.8 : 0.45) * (1 - i / 10))));
+              put(k.x, k.y, k.user ? "◉" : "•", REQ(k.user ? 1 : 0.95));
+            } else {
+              const o = liveOwner(k.a);
+              const d = (o.k - k.a + SPACE) % SPACE;
+              const step = SPACE / ringN;
+              for (let s = step; s < d; s += step) {
+                const [x, y] = ringPt((k.a + s) % SPACE);
+                put(x, y, "•", REQ(k.user ? 0.75 : 0.42));
+              }
+              k.hist.forEach(([x, y], i) => i > 0 && put(x, y, "·", REQ(0.6 * (1 - i / 8))));
+              const [ox, oy] = ringPt(o.k);
+              put(ox, oy, "◆", REQ(1));
+              put(k.x, k.y, "●", REQ(1));
+            }
+          });
+
+          life.forEach((l) => {
+            const [x, y] = ringPt(l.k);
+            const f = l.t / LIFE;
+            if (l.kind === "boot") {
+              const rr = 1 + l.t * 0.45;
+              const segs = Math.ceil(TAU * rr * 1.5);
+              if (l.t < LIFE) for (let i = 0; i < segs; i++) {
+                const a = (i / segs) * TAU;
+                put(x + rr * Math.cos(a), y + (rr / ASP) * Math.sin(a), "·", ADD(0.7 * (1 - f)));
+              }
+              put(x, y, l.t < LIFE * 0.3 ? "·" : l.t < LIFE * 0.6 ? "o" : l.t < LIFE ? "O" : "◆", ADD(1));
+            } else if (l.t < LIFE && Math.floor(l.t / 3) % 2 === 0) put(x, y, "x", DEL(1));
+          });
+          sparks.forEach((s) => put(s.x, s.y, s.t < 6 ? "*" : "·", DEL(1 - s.t / 18)));
+
+          nodes.forEach((n) => {
+            if (n.dying && life.some((l) => l.k === n.k && l.kind === "die")) return;
+            const [x, y] = ringPt(n.k);
+            const c = n.dying ? DEL(0.45) : hovering(n) ? DEL(1) : fset.has(n) ? OP(1) : n.flash > 0.5 ? REQ(1) : INK(0.85);
+            put(x, y, n.dying ? "x" : "◆", c);
+          });
+          if (hover && hover.kind === "ring" && !busy()) {
+            const [x, y] = ringPt(hover.k);
+            put(x, y, "+", fits(hover.k) && servers.length < MAX_S ? ADD(1) : INK(0.4));
+          }
+          ghosts.forEach((x) => g.text(x.x, x.y, x.text, DEL(0.8 * (1 - x.t / 14))));
+          if (cur && focus[0] && focus[0].x !== undefined) put(focus[0].x - 2, focus[0].y, "▸", OP(0.9));
+
+          // 3. labels on top, each in its own box
+          labels.forEach((l) => {
+            if (g.masked(l.x, l.y) || g.masked(l.x + l.text.length - 1, l.y)) return;
+            g.rect(l.x, l.y, l.text.length, 1, "#0b0c0e", l.color.replace(/[\d.]+\)$/, "0.35)"));
+            g.text(l.x, l.y, l.text, l.color);
+          });
+        },
+      });
+    </script>
+  </body>
+</html>

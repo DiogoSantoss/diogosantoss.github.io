@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock J · LSM tree</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0d0c0a;
+        --ink: #ebe7df;
+        --mid: rgba(235, 231, 223, 0.58);
+        --dim: rgba(235, 231, 223, 0.3);
+        --accent: #e8c547;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Azeret Mono", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 6vw; bottom: 10vh; max-width: 36ch; }
+      h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+      p { margin-top: 16px; color: var(--mid); line-height: 1.75; }
+      nav { margin-top: 20px; display: flex; gap: 18px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--dim); }
+      a:hover { color: var(--accent); border-color: var(--accent); }
+      footer {
+        position: fixed; right: 6vw; bottom: 26px; text-align: right;
+        color: var(--dim); font-size: 11px; line-height: 1.8;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; bottom: auto; top: 6vh; }
+        footer { right: 24px; left: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <div>lsm tree · leveled compaction · ? point read</div>
+      <div id="status">—</div>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const KEYS = 2000, MEM_CAP = 28, L0_MAX = 4, TABLE = 40, L1_MAX = 6, L2_MAX = 18;
+      const INK = (a) => `rgba(235,231,223,${a})`;
+      const YEL = (a) => `rgba(232,197,71,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let X0, W, rowMem, rowL0, rowL, mem, L0, L, anims, probes, flashRows, userWrites, compactWrites, cursor, lastOp;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const kx = (k) => X0 + (k / KEYS) * (W - 1);
+      const table = (keys) => ({ keys, min: keys[0], max: keys[keys.length - 1] });
+      const overlaps = (t, lo, hi) => t.min <= hi && t.max >= lo;
+
+      function split(keys) {
+        const out = [];
+        for (let i = 0; i < keys.length; i += TABLE) out.push(table(keys.slice(i, i + TABLE)));
+        return out;
+      }
+
+      function moveKeys(g, sources, toY, then) {
+        const parts = [];
+        sources.forEach(({ keys, y }) => keys.forEach((k) => parts.push({ x: kx(k), y0: y, y1: toY })));
+        anims.push({ parts, t0: g.t, dur: 12, then });
+      }
+
+      function compact(g) {
+        if (anims.length) return;
+        if (L0.length >= L0_MAX) {
+          const lo = Math.min(...L0.map((t) => t.min)), hi = Math.max(...L0.map((t) => t.max));
+          const over = L[0].filter((t) => overlaps(t, lo, hi));
+          const srcs = [...L0.map((t, i) => ({ keys: t.keys, y: rowL0[i] })), ...over.map((t) => ({ keys: t.keys, y: rowL[0] }))];
+          const merged = [...new Set(srcs.flatMap((s) => s.keys))].sort((a, b) => a - b);
+          L0 = [];
+          L[0] = L[0].filter((t) => !over.includes(t));
+          lastOp = `compact L0 → L1 · ${merged.length} keys`;
+          moveKeys(g, srcs, rowL[0], () => { L[0] = [...L[0], ...split(merged)].sort((a, b) => a.min - b.min); compactWrites += merged.length; flashRows.push({ y: rowL[0], t: g.t }); });
+          return;
+        }
+        for (let lv = 0; lv < 2; lv++) {
+          const cap = lv === 0 ? L1_MAX : L2_MAX;
+          if (L[lv].length <= cap) continue;
+          const pick = L[lv].find((t) => t.min >= cursor[lv]) || L[lv][0];
+          cursor[lv] = pick.max + 1;
+          const over = L[lv + 1].filter((t) => overlaps(t, pick.min, pick.max));
+          const srcs = [{ keys: pick.keys, y: rowL[lv] }, ...over.map((t) => ({ keys: t.keys, y: rowL[lv + 1] }))];
+          const merged = [...new Set(srcs.flatMap((s) => s.keys))].sort((a, b) => a - b);
+          L[lv] = L[lv].filter((t) => t !== pick);
+          L[lv + 1] = L[lv + 1].filter((t) => !over.includes(t));
+          lastOp = `compact L${lv + 1} → L${lv + 2} · ${merged.length} keys`;
+          moveKeys(g, srcs, rowL[lv + 1], () => { L[lv + 1] = [...L[lv + 1], ...split(merged)].sort((a, b) => a.min - b.min); compactWrites += merged.length; flashRows.push({ y: rowL[lv + 1], t: g.t }); });
+          return;
+        }
+      }
+
+      function locate(k) {
+        if (mem.has(k)) return rowMem;
+        for (let i = L0.length - 1; i >= 0; i--) if (L0[i].keys.includes(k)) return rowL0[i];
+        for (let lv = 0; lv < 3; lv++) if (L[lv].some((t) => overlaps(t, k, k) && t.keys.includes(k))) return rowL[lv];
+        return null;
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Azeret Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.5,
+        fps: 14,
+        bg: "#0d0c0a",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 110;
+          X0 = narrow ? 5 : Math.floor(g.cols * 0.36);
+          W = g.cols - X0 - 4;
+          const top = narrow ? Math.floor(g.rows * 0.42) : Math.floor(g.rows * 0.12);
+          const span = (narrow ? g.rows - 6 : Math.floor(g.rows * 0.78)) - top;
+          const s = span / 14;
+          rowMem = top;
+          rowL0 = [0, 1, 2, 3].map((i) => Math.round(top + s * (2.5 + i * 0.9)));
+          rowL = [7.5, 10.5, 13.5].map((v) => Math.round(top + s * v));
+          mem = new Set(); L0 = []; L = [[], [], []];
+          anims = []; probes = []; flashRows = []; cursor = [0, 0];
+          userWrites = 0; compactWrites = 0; lastOp = "—";
+          // seed some history so the levels are not empty on first paint
+          const seed = [...new Set(Array.from({ length: 1400 }, () => rnd(0, KEYS)))].sort((a, b) => a - b);
+          L[2] = split(seed.filter((_, i) => i % 3));
+          L[1] = split(seed.filter((_, i) => i % 3 === 0).filter((_, i) => i % 2)).slice(0, 4);
+        },
+        tick(g) {
+          g.t++;
+          for (let i = 0; i < 2; i++) {
+            if (Math.random() < 0.7 && mem.size < MEM_CAP) { mem.add(rnd(0, KEYS)); userWrites++; }
+          }
+          if (mem.size >= MEM_CAP && L0.length < L0_MAX && !anims.length) {
+            const keys = [...mem].sort((a, b) => a - b);
+            mem = new Set();
+            const slot = L0.length;
+            lastOp = `flush memtable → L0 · ${keys.length} keys`;
+            moveKeys(g, [{ keys, y: rowMem }], rowL0[slot], () => { L0.push(table(keys)); compactWrites += keys.length; flashRows.push({ y: rowL0[slot], t: g.t }); });
+          }
+          compact(g);
+
+          anims = anims.filter((a) => {
+            if (g.t - a.t0 >= a.dur) { a.then(); return false; }
+            return true;
+          });
+
+          if (g.t % 22 === 0) {
+            const k = rnd(0, KEYS);
+            probes.push({ k, x: Math.round(kx(k)), y: rowMem - 2, stop: locate(k) ?? rowL[2] + 1, t: g.t, hit: locate(k) !== null });
+          }
+          probes.forEach((p) => { if (p.y < p.stop) p.y++; });
+          probes = probes.filter((p) => g.t - p.t < 70);
+          flashRows = flashRows.filter((f) => g.t - f.t < 12);
+
+          const wa = userWrites ? (compactWrites / userWrites).toFixed(2) : "0";
+          statusEl.innerHTML = `<b>${lastOp}</b> · write amp ${wa}× · L0 ${L0.length} · L1 ${L[0].length} · L2 ${L[1].length} · L3 ${L[2].length}`;
+        },
+        draw(g) {
+          const flashing = (y) => flashRows.some((f) => f.y === y);
+          const label = (y, s) => g.text(X0 - 5, y, s, INK(0.4));
+
+          label(rowMem, "mem");
+          for (let x = X0; x < X0 + W; x += 2) g.put(x, rowMem, "·", INK(0.12));
+          mem.forEach((k) => g.put(kx(k), rowMem, "|", INK(0.85)));
+          g.text(X0 + W - 6, rowMem - 1, `${mem.size}/${MEM_CAP}`, INK(0.3));
+
+          const drawTable = (t, y) => {
+            const a = Math.round(kx(t.min)), b = Math.max(a + 1, Math.round(kx(t.max)));
+            const c = flashing(y) ? YEL(0.9) : INK(0.55);
+            for (let x = a + 1; x < b; x++) g.put(x, y, "=", flashing(y) ? YEL(0.5) : INK(0.22));
+            g.put(a, y, "[", c);
+            g.put(b, y, "]", c);
+          };
+
+          rowL0.forEach((y, i) => { if (i === 0) label(y, "L0"); });
+          L0.forEach((t, i) => drawTable(t, rowL0[i]));
+          L.forEach((lvl, i) => { label(rowL[i], `L${i + 1}`); lvl.forEach((t) => drawTable(t, rowL[i])); });
+
+          anims.forEach((a) => {
+            const f = Math.min(1, (g.t - a.t0) / a.dur);
+            const e = f * f * (3 - 2 * f);
+            a.parts.forEach((p) => g.put(p.x, p.y0 + (p.y1 - p.y0) * e, "·", YEL(0.85)));
+          });
+
+          probes.forEach((p) => {
+            for (let y = rowMem - 2; y < p.y; y++) g.put(p.x, y, "¦", INK(0.18));
+            const done = p.y >= p.stop;
+            g.put(p.x, p.y, done ? (p.hit ? "!" : "∅") : "?", done && p.hit ? YEL(1) : INK(0.8));
+          });
+        },
+      });
+    </script>
+  </body>
+</html>

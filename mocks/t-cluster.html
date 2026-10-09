@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock T · This page is a cluster</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0b0d;
+        --ink: #e5e7eb;
+        --mid: rgba(229, 231, 235, 0.58);
+        --dim: rgba(229, 231, 235, 0.3);
+        --accent: #38bdf8;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); cursor: default; }
+      body { font-family: "Fira Code", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; top: 50%; transform: translateY(-50%); max-width: 30ch; }
+      h1 { font-size: 22px; font-weight: 500; }
+      p { margin-top: 14px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 18px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 5vw; right: 5vw; bottom: 22px;
+        display: flex; justify-content: space-between; gap: 20px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span>real tabs gossip over BroadcastChannel · sim = simulated peers · leader = lowest live tab id</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { particles, trails } from "./scene.js";
+
+      const INK = (a) => `rgba(229,231,235,${a})`;
+      const SKY = (a) => `rgba(56,189,248,${a})`;
+      const statusEl = document.getElementById("status");
+      const hex = () => Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
+
+      const self = { id: hex(), real: true, self: true, counts: {}, flash: 0 };
+      const peers = new Map();
+      const sims = Array.from({ length: 5 }, () => ({ id: "sim" + hex().slice(0, 2), real: false, counts: {}, flash: 0 }));
+      const channel = new BroadcastChannel("diogosantoss-cluster");
+      let G, P, T, cx, cy, rx, ry, inbox = [];
+
+      const merge = (into, from) => { for (const [k, v] of Object.entries(from)) into[k] = Math.max(into[k] || 0, v); };
+      const total = (c) => Object.values(c).reduce((s, v) => s + v, 0);
+      const liveTabs = () => [self, ...[...peers.values()].filter((p) => performance.now() - p.lastSeen < 3000)];
+      const leader = () => liveTabs().map((n) => n.id).sort()[0];
+
+      channel.onmessage = (e) => inbox.push(e.data);
+      window.addEventListener("pagehide", () => channel.postMessage({ type: "bye", id: self.id }));
+      document.addEventListener("click", (e) => {
+        if (e.target.closest("a")) return;
+        self.counts[self.id] = (self.counts[self.id] || 0) + 1;
+        self.flash = 1;
+        channel.postMessage({ type: "hb", id: self.id, counts: self.counts });
+      });
+
+      function all() {
+        return [...liveTabs(), ...sims].sort((a, b) => (a.self ? -1 : b.self ? 1 : a.id < b.id ? -1 : 1));
+      }
+
+      function placeTargets() {
+        const list = all();
+        list.forEach((n, i) => {
+          const a = Math.PI / 2 + (i * 2 * Math.PI) / list.length;
+          n.tx = cx + rx * Math.cos(a); n.ty = cy + ry * Math.sin(a);
+          if (n.x === undefined) { n.x = n.tx; n.y = n.ty; }
+        });
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Fira Code", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0a0b0d",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          G = g;
+          const narrow = g.cols < 110;
+          cx = narrow ? g.cols / 2 : g.cols * 0.64;
+          cy = narrow ? g.rows * 0.66 : g.rows * 0.47;
+          rx = narrow ? g.cols * 0.36 : g.cols * 0.24;
+          ry = narrow ? g.rows * 0.22 : g.rows * 0.34;
+          P = particles();
+          T = trails(g, 0.84);
+          [self, ...sims, ...peers.values()].forEach((n) => (n.x = undefined));
+          placeTargets();
+        },
+        tick(g) {
+          g.t++;
+          const msgs = inbox; inbox = [];
+          msgs.forEach((m) => {
+            if (m.type === "bye") { peers.delete(m.id); return; }
+            let p = peers.get(m.id);
+            const isNew = !p;
+            if (!p) { p = { id: m.id, real: true, counts: {}, flash: 1 }; peers.set(m.id, p); }
+            p.lastSeen = performance.now();
+            merge(p.counts, m.counts);
+            placeTargets();
+            if (p.x !== undefined) P.send(g, [[p.x, p.y], [self.x, self.y]], { glyph: "·", color: SKY(0.8), speed: 3, onArrive: () => { merge(self.counts, m.counts); if (isNew) self.flash = 1; } });
+            else merge(self.counts, m.counts);
+          });
+
+          if (g.t % 10 === 0) {
+            channel.postMessage({ type: "hb", id: self.id, counts: self.counts });
+            liveTabs().forEach((p) => p !== self && p.x !== undefined && P.send(g, [[self.x, self.y], [p.x, p.y]], { glyph: "·", color: SKY(0.6), speed: 3 }));
+          }
+          for (const [id, p] of peers) if (performance.now() - p.lastSeen > 3000) { peers.delete(id); placeTargets(); }
+
+          sims.forEach((s) => {
+            if (Math.random() < 0.004) { s.counts[s.id] = (s.counts[s.id] || 0) + 1; s.flash = 1; }
+            if (Math.random() < 0.035) {
+              const others = [...sims.filter((o) => o !== s), self];
+              const to = others[Math.floor(Math.random() * others.length)];
+              const snapshot = { ...s.counts };
+              P.send(g, [[s.x, s.y], [to.x, to.y]], { glyph: "·", color: INK(0.45), speed: 2.4, onArrive: () => { merge(to.counts, snapshot); merge(s.counts, to.counts); } });
+            }
+          });
+
+          all().forEach((n) => { n.x += (n.tx - n.x) * 0.15; n.y += (n.ty - n.y) * 0.15; n.flash *= 0.9; });
+          T.step();
+          P.step(g, T);
+
+          const tabs = liveTabs().length;
+          const ld = leader();
+          statusEl.innerHTML = `you are <b>${self.id}</b> · ${tabs} tab${tabs > 1 ? "s" : ""} in cluster · leader ${ld}${ld === self.id ? " (you)" : ""} · counter ${total(self.counts)}`;
+        },
+        draw(g) {
+          T.draw(g, (v) => INK(0.22 * v));
+          P.draw(g);
+
+          const ld = leader();
+          all().forEach((n) => {
+            const isL = n.id === ld;
+            const c = n.self ? SKY(1) : n.real ? INK(0.9) : INK(0.4);
+            const tag = n.self ? (isL ? "you·leader" : "you") : n.real ? (isL ? "tab·leader" : "tab") : "sim";
+            g.text(n.x - 3, n.y, `[${n.id}]`, n.flash > 0.4 ? SKY(1) : c);
+            g.text(n.x - 3, n.y + 1, tag, n.self ? SKY(0.7) : INK(0.3));
+            g.text(n.x - 3, n.y + 2, `+${n.counts[n.id] || 0}`, INK(0.25));
+          });
+
+          const v = String(total(self.counts));
+          g.text(Math.round(cx - (v.length + 12) / 2), Math.round(cy - 1), `G-counter = ${v}`, INK(0.9));
+          const h1 = "click anywhere to increment";
+          const h2 = "open this page in another tab to add a node";
+          g.text(Math.round(cx - h1.length / 2), Math.round(cy + 1), h1, INK(0.3));
+          g.text(Math.round(cx - h2.length / 2), Math.round(cy + 2), h2, INK(0.3));
+        },
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock Q · Quicksilver</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0b0d;
+        --ink: #e8e8ea;
+        --mid: rgba(232, 232, 234, 0.58);
+        --dim: rgba(232, 232, 234, 0.3);
+        --accent: #f6821f;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Roboto Mono", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; bottom: 8vh; max-width: 34ch; }
+      h1 { font-size: 22px; font-weight: 500; }
+      p { margin-top: 14px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 18px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; right: 5vw; bottom: 8vh; text-align: right;
+        color: var(--dim); font-size: 11px; line-height: 1.8;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; bottom: auto; top: 5vh; }
+        footer { right: 24px; bottom: 20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <div id="write">—</div>
+      <div id="status">—</div>
+      <div>core → regional relays → cities · simulated timings</div>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { particles, trails } from "./scene.js";
+      import { loadLand, rasterize, drawLand, CITIES, hav } from "./worldmap.js";
+
+      const land = await loadLand();
+      const FPS = 14;
+      const HUBS = ["iad", "ams", "sin", "gru", "jnb", "syd", "nrt", "dxb"];
+      const CORE = { code: "core", ll: [45.6, -122.6] };
+      const INK = (a) => `rgba(232,232,234,${a})`;
+      const ORA = (a) => `rgba(246,130,31,${a})`;
+      const writeEl = document.getElementById("write");
+      const statusEl = document.getElementById("status");
+      const KEYS = ["zone/48213/ssl", "zone/1190/waf/rule/77", "account/301/workers/route", "zone/9020/cache/ttl", "dns/example.com/A", "zone/552/rate-limit"];
+      const VALS = ['"strict"', '"block"', '"api.*/v2"', "3600", '"192.0.2.10"', "1000"];
+
+      let M, P, T, nodes, ver, writeAt, arrivals, nextWrite, slow;
+
+      function buildTree() {
+        const all = Object.entries(CITIES).map(([code, ll]) => ({ code, ll, ver: 0, flash: 0, children: [] }));
+        const core = { ...CORE, ver: 0, flash: 0, children: [], hub: true };
+        const hubs = all.filter((n) => HUBS.includes(n.code));
+        hubs.forEach((h) => { h.parent = core; h.hub = true; core.children.push(h); });
+        const rest = all.filter((n) => !HUBS.includes(n.code));
+        rest.forEach((n) => (n.home = hubs.reduce((b, h) => (hav(n.ll, h.ll) < hav(n.ll, b.ll) ? h : b))));
+        rest.sort((a, b) => hav(a.ll, a.home.ll) - hav(b.ll, b.home.ll));
+        const attached = [...hubs];
+        rest.forEach((n) => {
+          const cands = attached.filter((m) => (m.home || m) === n.home && m.children.length < 4);
+          const parent = cands.reduce((b, m) => (hav(n.ll, m.ll) < hav(n.ll, b.ll) ? m : b), n.home);
+          n.parent = parent; parent.children.push(n); attached.push(n);
+        });
+        return [core, ...all];
+      }
+
+      function deliver(g, n, v) {
+        if (n.ver >= v) return;
+        n.ver = v; n.flash = 1;
+        arrivals.push(g.t - writeAt);
+        n.children.forEach((c) => {
+          const extra = c === slow ? 30 : 0;
+          P.send(g, [[n.x, n.y], [c.x, c.y]], {
+            glyph: "·", color: ORA(0.9), speed: 2.2, jitter: 0.6 + extra / 10,
+            onArrive: () => deliver(g, c, v),
+          });
+        });
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Roboto Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: FPS,
+        bg: "#0b0b0d",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          M = rasterize(g, land);
+          P = particles();
+          T = trails(g, 0.9);
+          nodes = buildTree();
+          nodes.forEach((n) => { [n.x, n.y] = M.project(n.ll[0], n.ll[1]).map(Math.round); });
+          ver = 18_204; nodes.forEach((n) => (n.ver = ver));
+          arrivals = []; writeAt = 0; nextWrite = g.t + 20; slow = null;
+        },
+        tick(g) {
+          g.t++;
+          if (g.t >= nextWrite) {
+            ver++;
+            writeAt = g.t; arrivals = [];
+            const leaves = nodes.filter((n) => !n.hub && n.code !== "core");
+            slow = Math.random() < 0.6 ? leaves[Math.floor(Math.random() * leaves.length)] : null;
+            const i = Math.floor(Math.random() * KEYS.length);
+            writeEl.innerHTML = `<b>PUT ${KEYS[i]} = ${VALS[i]}</b> · v${ver}`;
+            deliver(g, nodes[0], ver);
+            nextWrite = g.t + 90 + Math.floor(Math.random() * 40);
+          }
+          nodes.forEach((n) => (n.flash *= 0.9));
+          T.step();
+          P.step(g, T);
+
+          const total = nodes.length - 1;
+          const done = nodes.filter((n) => n.code !== "core" && n.ver === ver).length;
+          const sorted = [...arrivals].sort((a, b) => a - b);
+          const pct = (q) => (sorted.length ? (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] / FPS).toFixed(2) : "-");
+          statusEl.innerHTML =
+            done < total
+              ? `${done}/${total} cities at v${ver}` + (slow && slow.ver < ver ? ` · <b>${slow.code} retrying</b>` : "")
+              : `${total}/${total} cities at v${ver} · p50 ${pct(0.5)}s · p99 ${pct(0.99)}s`;
+        },
+        draw(g) {
+          drawLand(g, M, INK(0.13));
+          nodes.forEach((n) => n.parent && wireDots(g, n.parent, n));
+          T.draw(g, (v) => ORA(0.5 * v));
+          P.draw(g);
+          nodes.forEach((n) => {
+            if (n.code === "core") {
+              g.put(n.x, n.y, "@", ORA(1));
+              g.text(n.x + 2, n.y, "core", ORA(1));
+              return;
+            }
+            const fresh = n.ver === ver;
+            const c = n.flash > 0.4 ? ORA(1) : fresh ? INK(0.85) : INK(0.35);
+            g.put(n.x, n.y, n.hub ? "O" : "o", c);
+            if (n.hub) g.text(n.x + 2, n.y, n.code, fresh ? INK(0.6) : INK(0.3));
+            if (n === slow && !fresh) g.text(n.x + 2, n.y, `${n.code} v${n.ver}`, ORA(0.9));
+          });
+        },
+      });
+
+      function wireDots(g, a, b) {
+        const dx = b.x - a.x, dy = b.y - a.y, st = Math.max(Math.abs(dx), Math.abs(dy));
+        for (let s = 2; s < st; s += 3) g.put(a.x + (dx * s) / st, a.y + (dy * s) / st, "·", INK(0.07));
+      }
+    </script>
+  </body>
+</html>

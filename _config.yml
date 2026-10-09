@@ -1,0 +1,4 @@
+# GitHub Pages (Jekyll) settings: publish the site only, keep the design mocks and dev tooling out
+exclude:
+  - mocks
+  - README.md

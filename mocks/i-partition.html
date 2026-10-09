@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock I · Partition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Red+Hat+Mono:wght@400;500&family=Red+Hat+Display:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #101010;
+        --ink: #ececec;
+        --mid: rgba(236, 236, 236, 0.58);
+        --dim: rgba(236, 236, 236, 0.3);
+        --accent: #ff6b5b;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Red Hat Display", system-ui, sans-serif; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 6vw; top: 8vh; max-width: 400px; }
+      h1 { font-size: clamp(32px, 4vw, 48px); font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+      p { margin-top: 16px; font-size: 16px; line-height: 1.6; color: var(--mid); }
+      nav { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; font-family: "Red Hat Mono", monospace; font-size: 13px; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 6vw; bottom: 26px;
+        font-family: "Red Hat Mono", monospace; font-size: 12px; color: var(--dim); line-height: 1.8;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; }
+        footer { left: 24px; right: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <div>@ leader · number = commit index · ? stale</div>
+      <div id="status">healthy</div>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const N = 23;
+      const INK = (a) => `rgba(236,236,236,${a})`;
+      const RED = (a) => `rgba(255,107,91,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let nodes, msgs, drops, trail, cut, leader, phaseEnd, phase, commitAt, healedAt;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const side = (n) => (cut ? Math.sign((cut.x1 - cut.x0) * (n.y - cut.y0) - (cut.y1 - cut.y0) * 2 * (n.x - cut.x0) / 2) : 0);
+
+      function crossPoint(a, b) {
+        const d1 = side(a), d2 = side(b);
+        if (!cut || d1 === d2) return null;
+        // intersect segment a-b with the cut line
+        const x1 = a.x, y1 = a.y, x2 = b.x, y2 = b.y, x3 = cut.x0, y3 = cut.y0, x4 = cut.x1, y4 = cut.y1;
+        const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+        return { t, x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1) };
+      }
+
+      function makeCut(g) {
+        const xs = nodes.map((n) => n.x), minX = Math.min(...xs), maxX = Math.max(...xs);
+        for (let tries = 0; tries < 200; tries++) {
+          const mid = minX + (maxX - minX) * (0.25 + Math.random() * 0.5);
+          const tilt = (Math.random() - 0.5) * 30;
+          cut = { x0: mid - tilt, y0: 0, x1: mid + tilt, y1: g.rows };
+          const a = nodes.filter((n) => side(n) > 0).length;
+          const minority = Math.min(a, N - a);
+          if (minority >= 6 && minority <= 10) return;
+        }
+      }
+
+      const majoritySide = () => {
+        const a = nodes.filter((n) => side(n) > 0).length;
+        return a > N / 2 ? 1 : -1;
+      };
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Red Hat Mono", monospace',
+        fontSize: 12,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#101010",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 110;
+          const x0 = narrow ? 4 : Math.floor(g.cols * 0.36), x1 = g.cols - 8;
+          const y0 = narrow ? Math.floor(g.rows * 0.42) : 3, y1 = g.rows - 4;
+          nodes = [];
+          for (let tries = 0; nodes.length < N && tries < 5000; tries++) {
+            const n = { x: rnd(x0, x1), y: rnd(y0, y1) };
+            if (g.masked(n.x, n.y) || g.masked(n.x + 4, n.y)) continue;
+            if (nodes.some((m) => Math.hypot(m.x - n.x, (m.y - n.y) * 2.2) < 13)) continue;
+            nodes.push({ ...n, ci: 0, heard: 0, flash: 0 });
+          }
+          nodes.forEach((n) => {
+            n.peers = nodes.filter((m) => m !== n).sort((a, b) => Math.hypot(a.x - n.x, (a.y - n.y) * 2) - Math.hypot(b.x - n.x, (b.y - n.y) * 2)).slice(0, 4);
+          });
+          leader = nodes[rnd(0, nodes.length)];
+          msgs = []; drops = [];
+          trail = new Float32Array(g.cols * g.rows);
+          cut = null; phase = "healthy"; phaseEnd = g.t + 110; commitAt = g.t + 8; healedAt = null;
+        },
+        tick(g) {
+          g.t++;
+          if (g.t >= phaseEnd) {
+            if (phase === "healthy") {
+              makeCut(g);
+              phase = "partitioned"; phaseEnd = g.t + rnd(160, 220);
+            } else {
+              cut = null; phase = "healthy"; phaseEnd = g.t + rnd(120, 160); healedAt = g.t;
+            }
+          }
+          if (cut && side(leader) !== majoritySide() && g.t % 30 === 0) {
+            const cands = nodes.filter((n) => side(n) === majoritySide());
+            leader = cands.reduce((b, n) => (n.ci > b.ci ? n : b));
+            leader.flash = 1;
+          }
+          if (g.t >= commitAt && (!cut || side(leader) === majoritySide())) { leader.ci++; leader.heard = g.t; leader.flash = 0.6; commitAt = g.t + rnd(6, 12); }
+
+          nodes.forEach((n) => {
+            if (Math.random() < 0.18) {
+              const to = Math.random() < 0.85 ? n.peers[rnd(0, n.peers.length)] : nodes[rnd(0, nodes.length)];
+              const x = crossPoint(n, to);
+              msgs.push({ from: n, to, ci: n.ci, t0: g.t, dur: rnd(6, 16), cut: x });
+            }
+            n.flash *= 0.9;
+          });
+
+          for (let i = 0; i < trail.length; i++) trail[i] *= 0.85;
+          msgs = msgs.filter((m) => {
+            const f = (g.t - m.t0) / m.dur;
+            if (m.cut && cut && f >= m.cut.t) { drops.push({ x: m.cut.x, y: m.cut.y, t: g.t }); return false; }
+            if (f >= 1) {
+              if (m.ci > m.to.ci) { m.to.ci = m.ci; m.to.heard = g.t; if (healedAt && g.t - healedAt < 80) m.to.flash = 1; }
+              return false;
+            }
+            m.x = m.from.x + (m.to.x - m.from.x) * f;
+            m.y = m.from.y + (m.to.y - m.from.y) * f;
+            const cx = Math.round(m.x), cy = Math.round(m.y);
+            if (cx >= 0 && cy >= 0 && cx < g.cols && cy < g.rows) trail[cy * g.cols + cx] = 1;
+            return true;
+          });
+          drops = drops.filter((d) => g.t - d.t < 8);
+
+          if (cut) {
+            const maj = nodes.filter((n) => side(n) === majoritySide()).length;
+            statusEl.innerHTML = `<b>partition ${maj} | ${N - maj}</b> · majority commits, minority stalls · ${drops.length} dropped`;
+          } else {
+            const behind = nodes.filter((n) => n.ci < leader.ci - 2).length;
+            statusEl.innerHTML = behind ? `healed · ${behind} nodes catching up` : `healthy · ${N} nodes · commit ${leader.ci}`;
+          }
+        },
+        draw(g) {
+          for (let y = 0; y < g.rows; y++)
+            for (let x = 0; x < g.cols; x++) {
+              const v = trail[y * g.cols + x];
+              if (v > 0.06) g.put(x, y, "·", INK(0.3 * v));
+            }
+          if (cut) {
+            const ch = Math.abs(cut.x1 - cut.x0) / cut.y1 < 0.25 ? "¦" : cut.x1 > cut.x0 ? "\\" : "/";
+            for (let y = 0; y < g.rows; y++) {
+              const x = cut.x0 + ((cut.x1 - cut.x0) * y) / cut.y1;
+              if (y % 2 === 0) g.put(x, y, ch, RED(0.55));
+            }
+          }
+          drops.forEach((d) => g.put(d.x, d.y, "x", RED(1 - (g.t - d.t) / 8)));
+          nodes.forEach((n) => {
+            const stale = g.t - n.heard > 60;
+            const isL = n === leader;
+            const c = n.flash > 0.4 ? RED(1) : stale ? INK(0.35) : INK(0.9);
+            g.put(n.x, n.y, isL ? "@" : stale ? "?" : "o", isL ? RED(1) : c);
+            g.text(n.x + 2, n.y, String(n.ci), stale ? INK(0.25) : INK(0.5));
+          });
+        },
+      });
+    </script>
+  </body>
+</html>

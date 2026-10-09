@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock B · Gossip</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f3f3f1;
+        --ink: #18181b;
+        --mid: #52525b;
+        --accent: #2747d6;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Geist", system-ui, sans-serif; }
+      canvas { position: fixed; inset: 0; }
+      .content {
+        position: fixed;
+        left: 6vw;
+        bottom: 9vh;
+        max-width: 560px;
+      }
+      h1 {
+        font-size: clamp(44px, 7vw, 88px);
+        font-weight: 600;
+        letter-spacing: -0.045em;
+        line-height: 0.95;
+      }
+      p {
+        margin-top: 22px;
+        font-size: 17px;
+        line-height: 1.55;
+        color: var(--mid);
+        max-width: 44ch;
+      }
+      nav { margin-top: 26px; display: flex; gap: 22px; flex-wrap: wrap; font-size: 15px; }
+      a { color: var(--ink); text-decoration: none; font-weight: 500; }
+      a:hover { color: var(--accent); }
+      .status {
+        position: fixed;
+        top: 32px;
+        right: 6vw;
+        font-family: "Geist Mono", monospace;
+        font-size: 12px;
+        color: var(--mid);
+        text-align: right;
+        line-height: 1.7;
+        background: var(--bg);
+        padding: 4px 0 4px 12px;
+      }
+      .status b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; bottom: 6vh; }
+        .status { right: 24px; top: 20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <div class="status" id="status-box">
+      <div>gossip · fanout 2</div>
+      <div id="status">v0 · 0% converged</div>
+    </div>
+    <main class="content" id="content">
+      <h1>Diogo<br />Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">GitHub</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">LinkedIn</a>
+        <a href="https://x.com/l_Didas_l">X</a>
+        <a href="../cv-diogo-santos.pdf">CV</a>
+        <a href="../blog.html">Blog</a>
+      </nav>
+    </main>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const SX = 2, ACTIVE = 6, FANOUT = 2;
+      const INK = (a) => `rgba(24,24,27,${a})`;
+      const ACC = (a) => `rgba(39,71,214,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let nc, nr, count, ver, recv, latest, nextInject, injectT, roundsToConverge;
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Geist Mono", monospace',
+        fontSize: 12,
+        lineHeight: 1.5,
+        fps: 10,
+        bg: "#f3f3f1",
+        maskPad: [3, 1],
+        masks: [document.getElementById("content"), document.getElementById("status-box")],
+        init(g) {
+          nc = Math.ceil(g.cols / SX);
+          nr = g.rows;
+          count = nc * nr;
+          ver = new Int32Array(count);
+          recv = new Int32Array(count).fill(-1000);
+          latest = 0;
+          nextInject = 3;
+          injectT = 0;
+          roundsToConverge = null;
+        },
+        tick(g) {
+          g.t++;
+          if (g.t >= nextInject) {
+            latest++;
+            let i;
+            do { i = Math.floor(Math.random() * count); } while (g.masked((i % nc) * SX, Math.floor(i / nc)));
+            ver[i] = latest;
+            recv[i] = g.t;
+            injectT = g.t;
+            roundsToConverge = null;
+            nextInject = g.t + 40 + Math.floor(Math.random() * 30);
+          }
+
+          const updates = [];
+          for (let i = 0; i < count; i++) {
+            if (g.t - recv[i] >= ACTIVE) continue;
+            const x = i % nc, y = Math.floor(i / nc);
+            for (let k = 0; k < FANOUT; k++) {
+              if (Math.random() < 0.45) continue;
+              let j;
+              if (Math.random() < 0.015) {
+                j = Math.floor(Math.random() * count); // rare long-range peer
+              } else {
+                const nx = x + Math.floor(Math.random() * 5) - 2;
+                const ny = y + Math.floor(Math.random() * 3) - 1;
+                if (nx < 0 || ny < 0 || nx >= nc || ny >= nr) continue;
+                j = ny * nc + nx;
+              }
+              if (ver[j] < ver[i]) updates.push(j, ver[i]);
+            }
+          }
+          for (let k = 0; k < updates.length; k += 2) {
+            const j = updates[k], v = updates[k + 1];
+            if (ver[j] < v) { ver[j] = v; recv[j] = g.t; }
+          }
+
+          let fresh = 0;
+          for (let i = 0; i < count; i++) if (ver[i] === latest) fresh++;
+          const pct = (100 * fresh) / count;
+          if (pct >= 99.9 && roundsToConverge === null) roundsToConverge = g.t - injectT;
+          statusEl.innerHTML =
+            roundsToConverge === null
+              ? `v${latest} · <b>${pct.toFixed(1)}%</b> converged · round ${g.t - injectT}`
+              : `v${latest} · 100% converged in ${roundsToConverge} rounds`;
+        },
+        draw(g) {
+          for (let i = 0; i < count; i++) {
+            const x = (i % nc) * SX, y = Math.floor(i / nc);
+            const age = g.t - recv[i];
+            if (ver[i] < latest) g.put(x, y, ".", INK(0.12));
+            else if (age < 2) g.put(x, y, "@", ACC(1));
+            else if (age < 4) g.put(x, y, "O", ACC(0.75));
+            else if (age < 7) g.put(x, y, "o", ACC(0.45));
+            else if (age < 14) g.put(x, y, ":", INK(0.3));
+            else g.put(x, y, ".", INK(0.3));
+          }
+        },
+      });
+    </script>
+  </body>
+</html>

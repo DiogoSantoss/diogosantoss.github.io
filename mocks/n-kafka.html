@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock N · Kafka</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Inter+Tight:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0c0c;
+        --ink: #e6ecea;
+        --mid: rgba(230, 236, 234, 0.58);
+        --dim: rgba(230, 236, 234, 0.3);
+        --accent: #2dd4bf;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Fragment Mono", ui-monospace, monospace; font-size: 13px; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; top: 50%; transform: translateY(-50%); max-width: 30ch; }
+      h1 { font-family: "Inter Tight", sans-serif; font-size: 34px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+      p { margin-top: 16px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 5vw; right: 5vw; bottom: 24px;
+        display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span>L leader · F in-sync follower · - out of sync · hw high watermark · ! controller</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { box, wire, particles, trails } from "./scene.js";
+
+      const NB = 4, NP = 6, NC = 3, NCTL = 3;
+      const INK = (a) => `rgba(230,236,234,${a})`;
+      const TEA = (a) => `rgba(45,212,191,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let G, P, T, brokers, parts, consumers, committed, fetching, inflight, event, nextFail, nextChurn, rebalanceUntil, ctlLeader;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const velbow = (a, b, my) => [a, [a[0], my], [b[0], my], b];
+      const hosted = (b) => parts.filter((p) => p.replicas.includes(b)).map((p) => p.id);
+
+      function layout(g) {
+        const X0 = Math.floor(g.cols * 0.31), X1 = g.cols - 3;
+        const ctlW = 20, gap = 3;
+        const avail = X1 - X0 - ctlW - 4;
+        const bw = Math.floor((avail - gap * (NB - 1)) / NB);
+        const by = Math.floor(g.rows * 0.3);
+        const bh = 4 + Math.max(...Array.from({ length: NB }, (_, b) => Array.from({ length: NP }, (_, id) => [id % NB, (id + 1) % NB, (id + 2) % NB]).filter((r) => r.includes(b)).length));
+        return {
+          X0, X1, bw, by, bh,
+          bx: Array.from({ length: NB }, (_, b) => X0 + b * (bw + gap)),
+          ctlX: X1 - ctlW, ctlW,
+          prodY: Math.floor(g.rows * 0.12),
+          consY: Math.floor(g.rows * 0.76),
+          prodX: Array.from({ length: 3 }, (_, i) => X0 + Math.round(((i + 0.5) * (avail - 10)) / 3)),
+          consX: Array.from({ length: NC }, (_, i) => X0 + Math.round(((i + 0.5) * (avail - 12)) / NC)),
+          ctlY: Array.from({ length: NCTL }, (_, i) => Math.floor(g.rows * 0.3) + i * 4),
+        };
+      }
+
+      const rowPos = (b, p, right = false) => {
+        const k = hosted(b).indexOf(p);
+        return [G.bx[b] + (right ? G.bw - 3 : 2), G.by + 2 + k];
+      };
+
+      function electLeader(g, p, reason) {
+        const cand = p.replicas.find((b) => brokers[b].alive && p.isr.has(b));
+        const old = p.leader;
+        p.leader = cand ?? null;
+        p.epoch++;
+        if (cand === undefined) return;
+        event = `${reason} · p${p.id} leader broker-${old + 1} → broker-${cand + 1}`;
+        P.send(g, [[G.ctlX - 1, G.ctlY[ctlLeader]], [G.bx[cand] + G.bw - 1, G.by + 2 + hosted(cand).indexOf(p.id)]], { glyph: "!", color: TEA(1), speed: 3.2 });
+      }
+
+      function assignment() {
+        const alive = consumers.filter((c) => c.alive);
+        const map = {};
+        parts.forEach((p, i) => (map[p.id] = alive.length ? alive[i % alive.length].i : null));
+        return map;
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Fragment Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0a0c0c",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          G = layout(g);
+          P = particles();
+          T = trails(g, 0.84);
+          brokers = Array.from({ length: NB }, () => ({ alive: true, downUntil: 0 }));
+          parts = Array.from({ length: NP }, (_, id) => {
+            const replicas = [id % NB, (id + 1) % NB, (id + 2) % NB];
+            const leo = {};
+            replicas.forEach((b) => (leo[b] = 0));
+            return { id, replicas, leader: replicas[0], isr: new Set(replicas), leo, hw: 0, epoch: 0 };
+          });
+          consumers = Array.from({ length: NC }, (_, i) => ({ i, alive: true }));
+          committed = new Array(NP).fill(0);
+          fetching = new Array(NP).fill(false);
+          inflight = {};
+          event = "steady state";
+          ctlLeader = 0;
+          nextFail = g.t + 200; nextChurn = g.t + 500; rebalanceUntil = 0;
+        },
+        tick(g) {
+          g.t++;
+
+          G.prodX.forEach((px) => {
+            if (Math.random() > 0.35) return;
+            const p = parts[rnd(0, NP)];
+            if (p.leader === null) return;
+            const b = p.leader;
+            const [tx, ty] = rowPos(b, p.id);
+            P.send(g, velbow([px + 4, G.prodY + 1], [tx, ty], G.by - 2), {
+              glyph: "·", color: INK(0.75), speed: 3,
+              onArrive: () => { if (brokers[b].alive && p.leader === b) p.leo[b]++; },
+            });
+          });
+
+          if (g.t % 3 === 0)
+            parts.forEach((p) => {
+              if (p.leader === null) return;
+              const ld = p.leader;
+              p.replicas.forEach((f) => {
+                const key = p.id + ":" + f;
+                if (f === ld || !brokers[f].alive || inflight[key] || p.leo[f] >= p.leo[ld]) return;
+                inflight[key] = true;
+                const target = p.leo[ld];
+                const a = rowPos(ld, p.id, true), b = rowPos(f, p.id, true);
+                P.send(g, [a, b], {
+                  glyph: "·", color: INK(0.45), speed: 3.5, jitter: 0.6,
+                  onArrive: () => { inflight[key] = false; if (brokers[f].alive) p.leo[f] = Math.max(p.leo[f], Math.min(target, p.leo[ld])); },
+                });
+              });
+            });
+
+          parts.forEach((p) => {
+            if (p.leader === null) {
+              const any = p.replicas.find((b) => brokers[b].alive);
+              if (any === undefined) return;
+              p.isr = new Set([any]); electLeader(g, p, "unclean election");
+            }
+            const ld = p.leader;
+            p.replicas.forEach((f) => {
+              if (f === ld) return;
+              const lag = p.leo[ld] - p.leo[f];
+              if (!brokers[f].alive || lag > 30) p.isr.delete(f);
+              else if (!p.isr.has(f) && lag <= 1) { p.isr.add(f); event = `broker-${f + 1} back in ISR for p${p.id}`; }
+            });
+            const min = Math.min(...[...p.isr].map((b) => p.leo[b]));
+            p.hw = Math.max(p.hw, min);
+          });
+
+          if (g.t >= nextFail) {
+            const b = rnd(0, NB);
+            brokers[b].alive = false; brokers[b].downUntil = g.t + 170; brokers[b].diedAt = g.t;
+            event = `broker-${b + 1} down`;
+            nextFail = g.t + rnd(420, 560);
+          }
+          brokers.forEach((br, b) => {
+            if (!br.alive && br.diedAt && g.t === br.diedAt + 10)
+              parts.forEach((p) => { p.isr.delete(b); if (p.leader === b) electLeader(g, p, `broker-${b + 1} down`); });
+            if (!br.alive && g.t >= br.downUntil) {
+              br.alive = true; br.backAt = g.t;
+              parts.forEach((p) => { if (p.replicas.includes(b)) p.leo[b] = Math.min(p.leo[b], p.hw); });
+              event = `broker-${b + 1} restarted · truncating to hw, catching up`;
+            }
+            if (br.alive && br.backAt && g.t === br.backAt + 90)
+              parts.forEach((p) => { if (p.replicas[0] === b && p.leader !== b && p.isr.has(b)) electLeader(g, p, "preferred leader election"); });
+          });
+
+          if (g.t >= nextChurn) {
+            const c = consumers[rnd(0, NC)];
+            c.alive = !c.alive;
+            if (!consumers.some((x) => x.alive)) c.alive = true;
+            rebalanceUntil = g.t + 25;
+            event = `consumer-${c.i + 1} ${c.alive ? "joined" : "left"} · group rebalancing`;
+            nextChurn = g.t + rnd(260, 380);
+          }
+
+          const asg = assignment();
+          if (g.t >= rebalanceUntil && g.t % 4 === 0)
+            parts.forEach((p) => {
+              const c = asg[p.id];
+              if (c === null || p.leader === null || fetching[p.id] || committed[p.id] >= p.hw) return;
+              fetching[p.id] = true;
+              const target = p.hw;
+              const [sx, sy] = rowPos(p.leader, p.id);
+              P.send(g, velbow([sx, sy], [G.consX[c] + 4, G.consY - 1], G.by + G.bh + 1), {
+                glyph: "·", color: TEA(0.8), speed: 3.2,
+                onArrive: () => { fetching[p.id] = false; if (consumers[c].alive) committed[p.id] = Math.max(committed[p.id], target); },
+              });
+            });
+
+          if (g.t % 12 === 0)
+            [0, 1, 2].forEach((i) => {
+              if (i === ctlLeader) return;
+              P.send(g, [[G.ctlX + 2, G.ctlY[ctlLeader] + 1], [G.ctlX + 2, G.ctlY[i] - 1 + (i > ctlLeader ? 0 : 2)]], { glyph: "·", color: INK(0.4), speed: 1.5, trail: false });
+            });
+
+          T.step();
+          P.step(g, T);
+
+          const lag = parts.reduce((s, p) => s + Math.max(0, p.hw - committed[p.id]), 0);
+          const under = parts.filter((p) => p.isr.size < 3).length;
+          statusEl.innerHTML = `topic orders · ${NP} partitions · RF 3 · ${under} under-replicated · consumer lag ${lag} · <b>${event}</b>`;
+        },
+        draw(g) {
+          const lbl = INK(0.35);
+          G.prodX.forEach((px, i) => {
+            g.text(px, G.prodY, `producer-${i + 1}`, INK(0.75));
+            wire(g, [[px + 4, G.prodY + 1], [px + 4, G.by - 2]], INK(0.1));
+          });
+          wire(g, [[G.bx[0], G.by - 2], [G.bx[NB - 1] + G.bw - 1, G.by - 2]], INK(0.1));
+          wire(g, [[G.bx[0], G.by + G.bh + 1], [G.bx[NB - 1] + G.bw - 1, G.by + G.bh + 1]], INK(0.1));
+          G.consX.forEach((cx) => wire(g, [[cx + 4, G.by + G.bh + 1], [cx + 4, G.consY - 1]], INK(0.1)));
+
+          T.draw(g, (v) => INK(0.22 * v));
+
+          brokers.forEach((br, b) => {
+            const x = G.bx[b], c = br.alive ? INK(0.6) : INK(0.2);
+            box(g, x, G.by - 1, G.bw, G.bh, c, !br.alive);
+            g.text(x + 2, G.by, `broker-${b + 1}`, br.alive ? INK(0.9) : INK(0.3));
+            if (!br.alive) g.text(x + G.bw - 7, G.by, "down", TEA(0.9));
+            hosted(b).forEach((pid, k) => {
+              const p = parts[pid];
+              const role = p.leader === b ? "L" : p.isr.has(b) ? "F" : "-";
+              const col = !br.alive ? INK(0.18) : role === "L" ? TEA(1) : role === "F" ? INK(0.7) : INK(0.35);
+              const y = G.by + 2 + k;
+              g.text(x + 2, y, `p${pid} ${role}`, col);
+              g.text(x + 7, y, String(p.leo[b]).padStart(5), col);
+              if (role === "L") g.text(x + 13, y, `hw ${p.hw}`, INK(0.35));
+            });
+          });
+
+          g.text(G.ctlX, G.by - 3, "kraft quorum", lbl);
+          G.ctlY.forEach((y, i) => {
+            const c = i === ctlLeader ? TEA(0.9) : INK(0.55);
+            box(g, G.ctlX, y - 1, G.ctlW, 3, c);
+            g.text(G.ctlX + 2, y, `controller-${i + 1}`, c);
+            if (i === ctlLeader) g.put(G.ctlX + G.ctlW - 3, y, "*", TEA(1));
+          });
+
+          const asg = assignment();
+          consumers.forEach((c, i) => {
+            const x = G.consX[i], col = c.alive ? INK(0.85) : INK(0.25);
+            g.text(x, G.consY, `consumer-${i + 1}`, col);
+            const mine = parts.filter((p) => asg[p.id] === i);
+            const reb = g.t < rebalanceUntil;
+            g.text(x, G.consY + 1, c.alive ? (reb ? "rebalancing…" : mine.map((p) => `p${p.id}`).join(" ")) : "left group", reb ? TEA(0.7) : INK(0.4));
+            if (c.alive && !reb) {
+              const lag = mine.reduce((s, p) => s + Math.max(0, p.hw - committed[p.id]), 0);
+              g.text(x, G.consY + 2, `lag ${lag}`, INK(0.35));
+            }
+          });
+          g.text(G.consX[0], G.consY + 4, "group: billing", lbl);
+
+          P.draw(g);
+        },
+      });
+    </script>
+  </body>
+</html>

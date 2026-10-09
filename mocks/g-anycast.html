@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock G · Anycast</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --ink: #e7e9ec;
+        --mid: rgba(231, 233, 236, 0.58);
+        --dim: rgba(231, 233, 236, 0.3);
+        --accent: #f38020;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Geist", system-ui, sans-serif; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; bottom: 8vh; max-width: 360px; }
+      h1 { font-size: 34px; font-weight: 600; letter-spacing: -0.035em; }
+      p { margin-top: 12px; font-size: 15px; line-height: 1.6; color: var(--mid); }
+      nav { margin-top: 16px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; right: 5vw; bottom: 8vh; text-align: right;
+        font-family: "Geist Mono", monospace; font-size: 12px; color: var(--dim); line-height: 1.8;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; bottom: auto; top: 6vh; }
+        footer { right: 24px; bottom: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">GitHub</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">LinkedIn</a>
+        <a href="https://x.com/l_Didas_l">X</a>
+        <a href="../cv-diogo-santos.pdf">CV</a>
+        <a href="../blog.html">Blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <div>anycast · nearest healthy city</div>
+      <div id="status">all cities healthy</div>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { feature } from "https://cdn.jsdelivr.net/npm/topojson-client@3/+esm";
+
+      const topo = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json").then((r) => r.json());
+      const land = feature(topo, topo.objects.land);
+
+      const POPS = {
+        lis: [38.7, -9.1], mad: [40.4, -3.7], lhr: [51.5, -0.1], ams: [52.4, 4.9], fra: [50.1, 8.7],
+        waw: [52.2, 21.0], ist: [41.0, 29.0], cai: [30.0, 31.2], dxb: [25.2, 55.3], del: [28.6, 77.1],
+        bom: [19.1, 72.9], sin: [1.35, 103.8], hkg: [22.3, 114.2], icn: [37.5, 126.4], nrt: [35.7, 139.7],
+        syd: [-33.9, 151.2], per: [-31.9, 115.9], akl: [-37.0, 174.8], jnb: [-26.2, 28.0], los: [6.5, 3.4],
+        nbo: [-1.3, 36.8], gru: [-23.5, -46.6], eze: [-34.6, -58.4], scl: [-33.4, -70.8], bog: [4.7, -74.1],
+        mex: [19.4, -99.1], mia: [25.8, -80.3], iad: [38.9, -77.4], ord: [41.9, -87.6], dfw: [32.9, -97.0],
+        den: [39.8, -104.7], lax: [34.0, -118.4], sjc: [37.4, -121.9], sea: [47.5, -122.3], yyz: [43.7, -79.6],
+        anc: [61.2, -150.0], hel: [60.2, 24.9],
+      };
+      const LAT_TOP = 78, LAT_BOT = -58;
+      const INK = (a) => `rgba(231,233,236,${a})`;
+      const ORA = (a) => `rgba(243,128,32,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let mask, landCells, pops, reqs, mapX0, mapY0, mapW, mapH, nextFail, outage;
+
+      const rad = (d) => (d * Math.PI) / 180;
+      function hav([la1, lo1], [la2, lo2]) {
+        const a = Math.sin(rad(la2 - la1) / 2) ** 2 + Math.cos(rad(la1)) * Math.cos(rad(la2)) * Math.sin(rad(lo2 - lo1) / 2) ** 2;
+        return Math.asin(Math.sqrt(a));
+      }
+      const project = (lat, lon) => [mapX0 + ((lon + 180) / 360) * mapW, mapY0 + ((LAT_TOP - lat) / (LAT_TOP - LAT_BOT)) * mapH];
+      const unproject = (x, y) => [LAT_TOP - ((y - mapY0) / mapH) * (LAT_TOP - LAT_BOT), ((x - mapX0) / mapW) * 360 - 180];
+      const nearest = (ll, except) => pops.filter((p) => p.up && p !== except).reduce((b, p) => (hav(ll, p.ll) < hav(ll, b.ll) ? p : b));
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Geist Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0b0d10",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          mapW = g.cols;
+          mapH = Math.min(g.rows - 2, Math.round(((g.cols * g.cw * (LAT_TOP - LAT_BOT)) / 360 / g.ch) * 1.45));
+          mapX0 = 0;
+          mapY0 = Math.floor((g.rows - mapH) / 2);
+
+          const off = document.createElement("canvas");
+          off.width = g.cols; off.height = g.rows;
+          const c = off.getContext("2d");
+          c.fillStyle = "#fff";
+          c.beginPath();
+          const polys = land.features.flatMap((f) => (f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates));
+          polys.forEach((poly) => poly.forEach((ring) => {
+            ring.forEach(([lon, lat], i) => {
+              const [x, y] = project(lat, lon);
+              i ? c.lineTo(x, y) : c.moveTo(x, y);
+            });
+            c.closePath();
+          }));
+          c.fill("evenodd");
+          const data = c.getImageData(0, 0, g.cols, g.rows).data;
+          mask = new Uint8Array(g.cols * g.rows);
+          landCells = [];
+          for (let i = 0; i < mask.length; i++) if (data[i * 4 + 3] > 90) { mask[i] = 1; landCells.push(i); }
+
+          pops = Object.entries(POPS).map(([code, ll]) => {
+            const [x, y] = project(ll[0], ll[1]);
+            return { code, ll, x: Math.round(x), y: Math.round(y), up: true, flash: 0 };
+          });
+          reqs = [];
+          outage = null;
+          nextFail = g.t + 60;
+        },
+        tick(g) {
+          g.t++;
+          if (g.t >= nextFail) {
+            if (outage) { outage.pop.up = true; outage = null; nextFail = g.t + 50; }
+            else {
+              const pop = pops[Math.floor(Math.random() * pops.length)];
+              pop.up = false;
+              outage = { pop, to: nearest(pop.ll, pop) };
+              nextFail = g.t + 90;
+            }
+          }
+
+          for (let i = 0; i < 5; i++) {
+            const cell = landCells[Math.floor(Math.random() * landCells.length)];
+            const x = cell % g.cols, y = Math.floor(cell / g.cols);
+            const ll = unproject(x, y);
+            const to = nearest(ll);
+            const d = Math.hypot(to.x - x, (to.y - y) * 2);
+            reqs.push({ x0: x, y0: y, to, t0: g.t, dur: Math.max(4, d / 2.2) });
+          }
+          reqs = reqs.filter((r) => {
+            if (!r.to.up) {
+              r.to = nearest(unproject(r.x, r.y));
+              r.x0 = r.x; r.y0 = r.y; r.t0 = g.t;
+              r.dur = Math.max(4, Math.hypot(r.to.x - r.x, (r.to.y - r.y) * 2) / 2.2);
+            }
+            const p = (g.t - r.t0) / r.dur;
+            if (p >= 1) { r.to.flash = Math.min(1, r.to.flash + 0.2); return false; }
+            r.x = r.x0 + (r.to.x - r.x0) * p;
+            r.y = r.y0 + (r.to.y - r.y0) * p;
+            return true;
+          });
+          pops.forEach((p) => (p.flash *= 0.86));
+
+          statusEl.innerHTML = outage
+            ? `<b>${outage.pop.code} offline</b> · traffic shifted to ${outage.to.code}`
+            : `${pops.length} cities healthy · ${reqs.length} requests in flight`;
+        },
+        draw(g) {
+          for (const i of landCells) {
+            const x = i % g.cols, y = Math.floor(i / g.cols);
+            g.put(x, y, (x + y) % 2 ? "·" : ".", INK(0.16));
+          }
+          reqs.forEach((r) => g.put(r.x, r.y, "·", INK(0.6)));
+          pops.forEach((p) => {
+            if (!p.up) {
+              g.put(p.x, p.y, "x", ORA(1));
+              g.text(p.x + 2, p.y, p.code, ORA(1));
+            } else if (outage && outage.to === p) {
+              g.put(p.x, p.y, "@", ORA(0.9));
+              g.text(p.x + 2, p.y, p.code, ORA(0.7));
+            } else {
+              g.put(p.x, p.y, p.flash > 0.5 ? "@" : "o", p.flash > 0.5 ? ORA(0.95) : INK(0.75));
+            }
+          });
+        },
+      });
+    </script>
+  </body>
+</html>

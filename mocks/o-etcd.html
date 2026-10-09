@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock O · etcd</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sometype+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0c10;
+        --ink: #e4e8ee;
+        --mid: rgba(228, 232, 238, 0.58);
+        --dim: rgba(228, 232, 238, 0.3);
+        --accent: #419eda;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Sometype Mono", ui-monospace, monospace; font-size: 13px; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; top: 50%; transform: translateY(-50%); max-width: 30ch; }
+      h1 { font-size: 22px; font-weight: 700; }
+      p { margin-top: 16px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 5vw; right: 5vw; bottom: 24px;
+        display: flex; justify-content: space-between; gap: 20px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span>♥ keepalive · ? txn acquire · w watch event · # put</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { box, elbow, wire, particles, trails } from "./scene.js";
+
+      const TTL = 70, NS = 3, NK = 4;
+      const INK = (a) => `rgba(228,232,238,${a})`;
+      const BLU = (a) => `rgba(65,158,218,${a})`;
+      const statusEl = document.getElementById("status");
+      const KEY = "/registry/leases/kube-scheduler";
+
+      let G, P, T, etcd, eLeader, rev, idx, lease, scheds, kubelets, pods, event, nextHolderCrash, nextEtcdCrash, electingAt, leaseSeq;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+      const hex = () => Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
+
+      function layout(g) {
+        const X0 = Math.floor(g.cols * 0.31), X1 = g.cols - 3, RW = X1 - X0;
+        const cy = Math.floor(g.rows * 0.44);
+        const ex = X0 + Math.round(RW * 0.48);
+        return {
+          X0, X1, cy, ex,
+          sched: [-8, 0, 8].map((dy) => [X0, cy + dy]),
+          etcd: [[ex, cy - 6], [ex - 14, cy + 4], [ex + 14, cy + 4]],
+          api: [ex - 5, Math.floor(g.rows * 0.1)],
+          kube: Array.from({ length: NK }, (_, i) => [X1 - 18, Math.round(cy + (i - 1.5) * 6)]),
+          table: [ex - 24, cy + 10],
+        };
+      }
+
+      const ePos = (i) => G.etcd[i];
+      const schedEdge = (i) => [G.sched[i][0] + 17, G.sched[i][1]];
+
+      // A client request goes to the etcd leader, gets replicated, commits, then the response travels back.
+      function propose(g, from, glyph, apply, reply) {
+        if (eLeader === null) return setTimeoutTicks(g, 10, () => propose(g, from, glyph, apply, reply));
+        const ld = eLeader;
+        const to = [ePos(ld)[0] - 6, ePos(ld)[1]];
+        P.send(g, elbow(from, to), {
+          glyph, color: BLU(0.9), speed: 3,
+          onArrive: () => {
+            if (eLeader !== ld || !etcd[ld].alive) return setTimeoutTicks(g, 10, () => propose(g, from, glyph, apply, reply));
+            idx++;
+            let acked = false;
+            etcd.forEach((m, i) => {
+              if (i === ld) return;
+              P.send(g, [ePos(ld), ePos(i)], {
+                glyph: "·", color: INK(0.6), speed: 2.5,
+                onArrive: () => {
+                  if (!m.alive) return;
+                  m.idx = idx;
+                  P.send(g, [ePos(i), ePos(ld)], {
+                    glyph: "·", color: INK(0.35), speed: 2.5,
+                    onArrive: () => {
+                      if (acked || eLeader !== ld) return;
+                      acked = true;
+                      const res = apply();
+                      if (reply) P.send(g, elbow(to, from), { glyph: res === false ? "x" : "·", color: res === false ? INK(0.6) : BLU(0.6), speed: 3, onArrive: () => reply(res) });
+                    },
+                  });
+                },
+              });
+            });
+          },
+        });
+      }
+
+      let timers = [];
+      function setTimeoutTicks(g, n, fn) { timers.push({ at: g.t + n, fn }); }
+
+      function watchEvent(g, targets, glyph, onArrive) {
+        if (eLeader === null) return;
+        targets.forEach(([pos, cb]) => P.send(g, elbow([ePos(eLeader)[0] + 6, ePos(eLeader)[1]], pos), { glyph, color: BLU(0.75), speed: 3, onArrive: () => { cb(); onArrive && onArrive(); } }));
+      }
+
+      function tryAcquire(g, s) {
+        if (!s.alive || s.trying) return;
+        s.trying = true;
+        propose(g, schedEdge(s.i), "?", () => {
+          if (lease) return false;
+          rev++;
+          leaseSeq = hex();
+          lease = { holder: s.i, ttl: TTL, id: leaseSeq, rev };
+          event = `sched-${"abc"[s.i]} acquired lock at rev ${rev}`;
+          return true;
+        }, (ok) => {
+          s.trying = false;
+          s.role = ok ? "leader" : "standby";
+          if (ok) s.flash = 1;
+        });
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Sometype Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0a0c10",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          G = layout(g);
+          P = particles();
+          T = trails(g, 0.84);
+          timers = [];
+          etcd = Array.from({ length: 3 }, () => ({ alive: true, idx: 0 }));
+          eLeader = 0; rev = 4812; idx = 9120;
+          scheds = Array.from({ length: NS }, (_, i) => ({ i, alive: true, role: i === 1 ? "leader" : "standby", lastKA: 0, flash: 0 }));
+          leaseSeq = hex();
+          lease = { holder: 1, ttl: TTL, id: leaseSeq, rev };
+          kubelets = Array.from({ length: NK }, () => ({ rev, flash: 0 }));
+          pods = [];
+          event = "sched-b holds the lock";
+          nextHolderCrash = g.t + 260; nextEtcdCrash = g.t + 700; electingAt = null;
+        },
+        tick(g) {
+          g.t++;
+          const due = timers.filter((t) => t.at <= g.t);
+          timers = timers.filter((t) => t.at > g.t);
+          due.forEach((t) => t.fn());
+
+          scheds.forEach((s) => {
+            if (!s.alive) { if (g.t >= s.downUntil) { s.alive = true; s.role = "standby"; } return; }
+            if (s.role === "leader" && g.t - s.lastKA >= 16) {
+              s.lastKA = g.t;
+              propose(g, schedEdge(s.i), "♥", () => { if (lease && lease.holder === s.i) lease.ttl = TTL; }, null);
+            }
+            s.flash *= 0.9;
+          });
+
+          if (g.t >= nextHolderCrash) {
+            const h = scheds.find((s) => s.role === "leader" && s.alive);
+            if (h) { h.alive = false; h.role = "down"; h.downUntil = g.t + 260; event = `sched-${"abc"[h.i]} crashed · lease ${lease ? lease.id : ""} ttl running out`; }
+            nextHolderCrash = g.t + rnd(440, 560);
+          }
+
+          if (lease && eLeader !== null) {
+            lease.ttl--;
+            if (lease.ttl <= 0) {
+              const old = lease;
+              lease = null; rev++;
+              event = `lease ${old.id} expired · DELETE ${KEY.split("/").pop()} at rev ${rev}`;
+              watchEvent(g, scheds.filter((s) => s.alive).map((s) => [schedEdge(s.i), () => tryAcquire(g, s)]), "w");
+            }
+          }
+
+          if (!lease && g.t % 40 === 0) scheds.forEach((s) => s.alive && tryAcquire(g, s));
+
+          if (g.t % 11 === 0) {
+            const name = `web-${hex().slice(0, 3)}`;
+            propose(g, [G.api[0] + 4, G.api[1] + 2], "#", () => {
+              rev++;
+              pods.unshift({ name, rev });
+              pods = pods.slice(0, 3);
+              const r = rev;
+              watchEvent(g, G.kube.map((pos, i) => [[pos[0] - 1, pos[1]], () => { kubelets[i].rev = Math.max(kubelets[i].rev, r); kubelets[i].flash = 1; }]), "w");
+            }, null);
+          }
+          kubelets.forEach((k) => (k.flash *= 0.88));
+
+          if (g.t >= nextEtcdCrash && eLeader !== null) {
+            etcd[eLeader].alive = false; etcd[eLeader].downUntil = g.t + 150;
+            event = `etcd-${eLeader + 1} (raft leader) down · election`;
+            eLeader = null; electingAt = g.t + 22;
+            nextEtcdCrash = g.t + rnd(800, 1000);
+          }
+          etcd.forEach((m) => { if (!m.alive && g.t >= m.downUntil) { m.alive = true; m.idx = idx; } });
+          if (eLeader === null && electingAt && g.t >= electingAt) {
+            const alive = etcd.map((m, i) => (m.alive ? i : -1)).filter((i) => i >= 0);
+            const cand = alive[rnd(0, alive.length)];
+            alive.forEach((i) => i !== cand && P.send(g, [ePos(cand), ePos(i)], { glyph: "?", color: BLU(0.9), speed: 2 }));
+            electingAt = null;
+            setTimeoutTicks(g, 14, () => { eLeader = cand; event = `etcd-${cand + 1} elected raft leader`; });
+          }
+
+          T.step();
+          P.step(g, T);
+
+          const holder = lease ? `sched-${"abc"[lease.holder]}` : "nobody";
+          statusEl.innerHTML = `rev ${rev} · raft idx ${idx} · ${eLeader === null ? "<b>etcd electing</b>" : `etcd leader etcd-${eLeader + 1}`} · lock: ${holder} · <b>${event}</b>`;
+        },
+        draw(g) {
+          const lbl = INK(0.35);
+          g.text(G.X0, G.cy - 11, "kube-scheduler × 3", lbl);
+          g.text(G.ex - 6, G.cy - 11, "etcd raft", lbl);
+          g.text(G.kube[0][0], G.cy - 13, "watchers", lbl);
+
+          scheds.forEach((s, i) => wire(g, elbow(schedEdge(i), [G.ex - 20, G.cy]), INK(0.1)));
+          wire(g, [[G.api[0] + 4, G.api[1] + 2], [G.api[0] + 4, G.cy - 8]], INK(0.1));
+          G.kube.forEach((k) => wire(g, elbow([G.ex + 20, G.cy], [k[0] - 1, k[1]]), INK(0.1)));
+
+          T.draw(g, (v) => INK(0.22 * v));
+
+          box(g, G.api[0] - 2, G.api[1] - 1, 13, 3, INK(0.6));
+          g.text(G.api[0], G.api[1], "apiserver", INK(0.85));
+
+          scheds.forEach((s, i) => {
+            const [x, y] = G.sched[i];
+            const c = !s.alive ? INK(0.2) : s.role === "leader" ? BLU(1) : INK(0.7);
+            box(g, x, y - 1, 17, 3, c, !s.alive);
+            g.text(x + 2, y, `sched-${"abc"[i]}`, c);
+            g.text(x + 10, y, !s.alive ? "down" : s.role === "leader" ? "lead" : "wait", c);
+          });
+
+          etcd.forEach((m, i) => {
+            const [x, y] = ePos(i);
+            const isL = i === eLeader;
+            const c = !m.alive ? INK(0.2) : isL ? BLU(1) : INK(0.75);
+            box(g, x - 6, y - 1, 13, 3, c, !m.alive);
+            g.text(x - 4, y, `etcd-${i + 1}`, c);
+            g.put(x + 3, y, !m.alive ? "x" : isL ? "L" : "F", c);
+            g.text(x - 6, y + 2, `idx ${m.alive ? (isL ? idx : m.idx) : "-"}`, INK(0.3));
+          });
+
+          const [tx, ty] = G.table;
+          g.text(tx, ty, "key", lbl);
+          g.text(tx + 36, ty, "value", lbl);
+          g.text(tx, ty + 1, KEY, lease ? INK(0.85) : INK(0.3));
+          if (lease) {
+            const n = Math.ceil((lease.ttl / TTL) * 10);
+            g.text(tx + 36, ty + 1, `sched-${"abc"[lease.holder]}`, BLU(0.95));
+            g.text(tx + 45, ty + 1, "▮".repeat(n) + "▯".repeat(10 - n), lease.ttl < TTL * 0.35 ? BLU(1) : INK(0.45));
+          } else g.text(tx + 36, ty + 1, "(deleted)", INK(0.4));
+          pods.forEach((p, k) => {
+            g.text(tx, ty + 2 + k, `/registry/pods/default/${p.name}`, INK(0.45));
+            g.text(tx + 36, ty + 2 + k, `mod_rev ${p.rev}`, INK(0.3));
+          });
+
+          G.kube.forEach(([x, y], i) => {
+            const k = kubelets[i];
+            g.text(x, y, `kubelet-${i + 1}`, k.flash > 0.5 ? BLU(1) : INK(0.75));
+            g.text(x, y + 1, `rev ${k.rev}`, INK(0.35));
+          });
+
+          P.draw(g);
+        },
+      });
+    </script>
+  </body>
+</html>

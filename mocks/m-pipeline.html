@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock M · Pipeline</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0c0a;
+        --ink: #e9ebe4;
+        --mid: rgba(233, 235, 228, 0.58);
+        --dim: rgba(233, 235, 228, 0.3);
+        --accent: #bef264;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Chivo Mono", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; top: 50%; transform: translateY(-50%); max-width: 30ch; }
+      h1 { font-size: 22px; font-weight: 600; }
+      p { margin-top: 16px; color: var(--mid); line-height: 1.75; }
+      nav { margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; left: 5vw; right: 5vw; bottom: 24px;
+        display: flex; justify-content: space-between; gap: 20px; color: var(--dim); font-size: 11px;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; top: 5vh; transform: none; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">—</span>
+      <span>· msg &nbsp; # batch &nbsp; ? vote &nbsp; + fresh read &nbsp; ~ stale read &nbsp; x rejected</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { box, elbow, wire, particles, trails } from "./scene.js";
+
+      const N = 5, MAJ = 3, QCAP = 80, NPROD = 4, NREAD = 4;
+      const INK = (a) => `rgba(233,235,228,${a})`;
+      const LIM = (a) => `rgba(190,242,100,${a})`;
+      const statusEl = document.getElementById("status");
+
+      let L, P, T, queue, nodes, leader, term, commit, acks, replicas, electionAt, nextCrash, batchInFlight, readsFresh, readsStale, rejected;
+
+      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a));
+
+      function layout(g) {
+        const X0 = Math.floor(g.cols * 0.32), X1 = g.cols - 3, RW = X1 - X0;
+        const cy = Math.floor(g.rows * 0.47);
+        const q = { x: X0 + Math.round(RW * 0.14), y: cy - 6, w: 11, h: 13 };
+        const c = { x: X0 + Math.round(RW * 0.42), y: cy, rx: Math.round(RW * 0.1), ry: 7 };
+        const rx0 = X0 + Math.round(RW * 0.66);
+        const readerX = X1 - 7;
+        return {
+          X0, X1, cy, q, c, rx0, readerX,
+          prods: Array.from({ length: NPROD }, (_, i) => [X0, Math.round(cy + (i - 1.5) * 5)]),
+          reps: [-8, 0, 8].map((dy) => [rx0, cy + dy]),
+          readers: Array.from({ length: NREAD }, (_, i) => [readerX, Math.round(cy + (i - 1.5) * 5)]),
+          nodePos: Array.from({ length: N }, (_, i) => {
+            const a = -Math.PI / 2 + (i * 2 * Math.PI) / N;
+            return [Math.round(c.x + c.rx * Math.cos(a)), Math.round(c.y + c.ry * Math.sin(a))];
+          }),
+        };
+      }
+
+      const qIn = () => [L.q.x - 1, L.q.y + Math.floor(L.q.h / 2)];
+      const qOut = () => [L.q.x + L.q.w, L.q.y + Math.floor(L.q.h / 2)];
+      const clusterOut = () => [L.c.x + L.c.rx + 6, L.c.y];
+
+      function commitUpTo(g, idx) {
+        if (idx <= commit) return;
+        commit = idx;
+        replicas.forEach((r, i) => {
+          const from = L.nodePos[leader.i];
+          P.send(g, [[from[0] + 4, from[1]], ...elbow(clusterOut(), [L.rx0 - 1, L.reps[i][1]], L.c.x + L.c.rx + 10)], {
+            glyph: "#", color: INK(0.6), speed: 2.2 / r.slow, jitter: 1.2,
+            onArrive: () => { r.applied = Math.max(r.applied, idx); r.flash = 1; },
+          });
+        });
+      }
+
+      function startElection(g) {
+        const alive = nodes.filter((n) => n.alive);
+        const cand = alive[rnd(0, alive.length)];
+        term++;
+        cand.role = "C";
+        let votes = 1;
+        alive.forEach((n) => {
+          if (n === cand) return;
+          P.send(g, [L.nodePos[cand.i], L.nodePos[n.i]], {
+            glyph: "?", color: LIM(0.9), speed: 2,
+            onArrive: () => {
+              if (!n.alive) return;
+              P.send(g, [L.nodePos[n.i], L.nodePos[cand.i]], {
+                glyph: "+", color: LIM(0.7), speed: 2,
+                onArrive: () => {
+                  votes++;
+                  if (votes >= MAJ && !leader && cand.alive) {
+                    leader = cand; cand.role = "L"; cand.flash = 1;
+                    nodes.forEach((m) => m !== cand && m.alive && (m.role = "F"));
+                  }
+                },
+              });
+            },
+          });
+        });
+      }
+
+      function replicateBatch(g, batch) {
+        const ld = leader, t = term;
+        ld.idx++;
+        const idx = ld.idx;
+        acks[idx] = 1;
+        nodes.forEach((n) => {
+          if (n === ld) return;
+          P.send(g, [L.nodePos[ld.i], L.nodePos[n.i]], {
+            glyph: "·", color: INK(0.8), speed: 2.4, jitter: 0.8,
+            onArrive: () => {
+              if (!n.alive || term !== t) return;
+              n.idx = Math.max(n.idx, idx);
+              P.send(g, [L.nodePos[n.i], L.nodePos[ld.i]], {
+                glyph: "·", color: INK(0.45), speed: 2.4, jitter: 0.8,
+                onArrive: () => {
+                  if (leader !== ld || !ld.alive) return;
+                  acks[idx]++;
+                  if (acks[idx] === MAJ) commitUpTo(g, idx);
+                },
+              });
+            },
+          });
+        });
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Chivo Mono", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0b0c0a",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          L = layout(g);
+          P = particles();
+          T = trails(g, 0.82);
+          queue = 0; term = 1; commit = 0; acks = {};
+          nodes = Array.from({ length: N }, (_, i) => ({ i, alive: true, role: i === 0 ? "L" : "F", idx: 0, flash: 0 }));
+          leader = nodes[0];
+          replicas = [1, 1.6, 3.2].map((slow) => ({ applied: 0, slow, flash: 0 }));
+          electionAt = null; nextCrash = g.t + 320; batchInFlight = false;
+          readsFresh = 0; readsStale = 0; rejected = 0;
+        },
+        tick(g) {
+          g.t++;
+
+          L.prods.forEach((p, i) => {
+            if (Math.random() > 0.16) return;
+            P.send(g, elbow([p[0] + 7, p[1]], qIn()), {
+              glyph: "·", color: INK(0.7), speed: 2.6,
+              onArrive: () => {
+                if (queue < QCAP) { queue++; return; }
+                rejected++;
+                P.send(g, elbow(qIn(), [p[0] + 7, p[1]]), { glyph: "x", color: LIM(0.9), speed: 2.6 });
+              },
+            });
+          });
+
+          if (leader && leader.alive && !batchInFlight && queue > 0 && g.t % 4 === 0) {
+            const size = Math.min(queue, 10);
+            queue -= size;
+            batchInFlight = true;
+            const ld = leader;
+            P.send(g, [qOut(), [L.nodePos[ld.i][0] - 4, L.nodePos[ld.i][1]]], {
+              glyph: "#", color: LIM(0.9), speed: 2.6,
+              onArrive: () => { batchInFlight = false; if (leader === ld && ld.alive) replicateBatch(g, size); else queue += size; },
+            });
+          }
+
+          if (g.t >= nextCrash && leader) {
+            leader.alive = false; leader.role = "down"; leader.downUntil = g.t + 160;
+            leader = null; electionAt = g.t + 40;
+            nextCrash = g.t + rnd(380, 520);
+          }
+          nodes.forEach((n) => {
+            if (!n.alive && g.t >= n.downUntil) { n.alive = true; n.role = "F"; n.idx = commit; }
+            n.flash *= 0.9;
+          });
+          if (!leader && electionAt && g.t >= electionAt) { startElection(g); electionAt = g.t + 50; }
+
+          if (Math.random() < 0.22) {
+            const ri = rnd(0, NREAD), pi = rnd(0, 3);
+            const rd = L.readers[ri], rp = L.reps[pi];
+            const path = elbow([rd[0] - 1, rd[1]], [rp[0] + 16, rp[1]]);
+            P.send(g, path, {
+              glyph: "·", color: INK(0.5), speed: 3,
+              onArrive: () => {
+                const stale = commit - replicas[pi].applied > 0;
+                stale ? readsStale++ : readsFresh++;
+                P.send(g, [...path].reverse(), { glyph: stale ? "~" : "+", color: stale ? INK(0.55) : LIM(0.95), speed: 3 });
+              },
+            });
+          }
+          replicas.forEach((r) => (r.flash *= 0.88));
+
+          T.step();
+          P.step(g, T);
+
+          const lags = replicas.map((r) => commit - r.applied).join("/");
+          const pct = readsFresh + readsStale ? Math.round((100 * readsStale) / (readsFresh + readsStale)) : 0;
+          statusEl.innerHTML =
+            `queue ${queue}/${QCAP} · term ${term} · ` +
+            (leader ? `leader n${leader.i + 1}` : `<b>no leader · electing</b>`) +
+            ` · commit ${commit} · replica lag ${lags} · ${pct}% stale reads` + (rejected ? ` · ${rejected} rejected` : "");
+        },
+        draw(g) {
+          const dim = INK(0.12), lbl = INK(0.35);
+          const top = L.cy - 13;
+
+          g.text(L.X0, top, "producers", lbl);
+          g.text(L.q.x, top, "queue", lbl);
+          g.text(L.c.x - 2, top, "raft", lbl);
+          g.text(L.rx0, top, "read replicas", lbl);
+          g.text(L.readerX, top, "readers", lbl);
+
+          L.prods.forEach((p) => wire(g, elbow([p[0] + 7, p[1]], qIn()), dim));
+          wire(g, [qOut(), [L.c.x - L.c.rx - 5, L.cy]], dim);
+          L.reps.forEach((r) => wire(g, elbow(clusterOut(), [L.rx0 - 1, r[1]], L.c.x + L.c.rx + 10), dim));
+          L.readers.forEach((rd) => L.reps.forEach((rp) => wire(g, elbow([rd[0] - 1, rd[1]], [rp[0] + 16, rp[1]]), INK(0.07))));
+
+          T.draw(g, (v) => INK(0.25 * v));
+
+          L.prods.forEach((p, i) => g.text(p[0], p[1], `prod-${i + 1}`, INK(0.75)));
+
+          const full = queue >= QCAP;
+          box(g, L.q.x, L.q.y, L.q.w, L.q.h, full ? LIM(0.9) : INK(0.5));
+          const per = L.q.w - 2, rows = L.q.h - 2;
+          for (let k = 0; k < Math.min(queue, per * rows); k++)
+            g.put(L.q.x + 1 + (k % per), L.q.y + L.q.h - 2 - Math.floor(k / per), "▪", queue > QCAP * 0.6 ? LIM(0.8) : INK(0.55));
+          g.text(L.q.x, L.q.y + L.q.h, `depth ${queue}`, INK(0.4));
+
+          nodes.forEach((n) => {
+            const [x, y] = L.nodePos[n.i];
+            const c = !n.alive ? INK(0.2) : n.role === "L" ? LIM(1) : n.role === "C" ? LIM(0.6) : INK(0.8);
+            box(g, x - 4, y - 1, 9, 3, c, !n.alive);
+            g.text(x - 2, y, `n${n.i + 1}`, c);
+            g.put(x + 2, y, !n.alive ? "x" : n.role, c);
+            g.text(x - 4, y + 2, `idx ${n.idx}`, INK(0.3));
+          });
+
+          L.reps.forEach(([x, y], i) => {
+            const r = replicas[i];
+            const lag = commit - r.applied;
+            const c = r.flash > 0.4 ? LIM(0.9) : INK(0.7);
+            box(g, x, y - 1, 16, 3, c);
+            g.text(x + 2, y, `replica-${i + 1}`, c);
+            g.text(x, y + 2, `applied ${r.applied}`, INK(0.3));
+            g.text(x + 12, y + 2, lag ? `-${lag}` : "ok", lag ? INK(0.6) : LIM(0.8));
+          });
+
+          L.readers.forEach(([x, y], i) => g.text(x, y, `read-${i + 1}`, INK(0.75)));
+
+          P.draw(g);
+        },
+      });
+    </script>
+  </body>
+</html>

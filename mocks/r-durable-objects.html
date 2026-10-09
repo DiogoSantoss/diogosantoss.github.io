@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock R · Durable Objects</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0c0a0c;
+        --ink: #ece6ea;
+        --mid: rgba(236, 230, 234, 0.58);
+        --dim: rgba(236, 230, 234, 0.3);
+        --accent: #f472b6;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "Source Code Pro", ui-monospace, monospace; font-size: 13px; font-weight: 300; }
+      canvas { position: fixed; inset: 0; }
+      .content { position: fixed; left: 5vw; bottom: 8vh; max-width: 34ch; }
+      h1 { font-size: 22px; font-weight: 600; }
+      p { margin-top: 14px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 18px; display: flex; gap: 16px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; }
+      a:hover { color: var(--accent); }
+      footer {
+        position: fixed; right: 5vw; bottom: 8vh; text-align: right;
+        color: var(--dim); font-size: 11px; line-height: 1.8;
+      }
+      footer b { color: var(--accent); font-weight: 400; }
+      @media (max-width: 760px) {
+        .content { left: 24px; right: 24px; bottom: auto; top: 5vh; }
+        footer { right: 24px; bottom: 20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>Diogo Santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <div id="objs">—</div>
+      <div id="status">—</div>
+      <div>client → nearest city → the one city that owns the object · ■ object · ▓ state migrating</div>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+      import { particles, trails } from "./scene.js";
+      import { loadLand, rasterize, drawLand, CITIES, hav } from "./worldmap.js";
+
+      const land = await loadLand();
+      const INK = (a) => `rgba(236,230,234,${a})`;
+      const PNK = (a) => `rgba(244,114,182,${a})`;
+      const objsEl = document.getElementById("objs");
+      const statusEl = document.getElementById("status");
+
+      let M, P, T, cities, objects, event;
+
+      const rnd = (a, b) => a + Math.random() * (b - a);
+      const nearest = (ll) => cities.reduce((b, c) => (hav(ll, c.ll) < hav(ll, b.ll) ? c : b));
+      const rtt = (km) => Math.round(km / 100); // ~2x one-way at ~200 km/ms in fibre
+
+      function bestCity(samples) {
+        return cities.reduce((best, c) => {
+          const cost = samples.reduce((s, ll) => s + hav(ll, c.ll), 0);
+          return cost < best.cost ? { c, cost } : best;
+        }, { c: null, cost: Infinity });
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"Source Code Pro", monospace',
+        fontSize: 11,
+        lineHeight: 1.45,
+        fps: 14,
+        bg: "#0c0a0c",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          M = rasterize(g, land);
+          P = particles();
+          T = trails(g, 0.86);
+          cities = Object.entries(CITIES).map(([code, ll]) => {
+            const [x, y] = M.project(ll[0], ll[1]).map(Math.round);
+            return { code, ll, x, y, flash: 0 };
+          });
+          const byCode = Object.fromEntries(cities.map((c) => [c.code, c]));
+          objects = [
+            { name: "room:lobby", city: byCode.ams, hot: [48, 10], drift: -0.12, count: 0, samples: [], migrating: false },
+            { name: "cart:8812", city: byCode.iad, hot: [38, -85], drift: -0.09, count: 0, samples: [], migrating: false },
+            { name: "doc:readme", city: byCode.sin, hot: [10, 110], drift: -0.15, count: 0, samples: [], migrating: false },
+          ];
+          event = "3 objects, each living in exactly one city";
+          objects.forEach((o) => (o.nextCheck = g.t + 120 + Math.floor(Math.random() * 80)));
+        },
+        tick(g) {
+          g.t++;
+          objects.forEach((o) => {
+            o.hot[1] = ((o.hot[1] + o.drift + 540) % 360) - 180;
+            if (Math.random() < 0.55) {
+              let ll, tries = 0;
+              do {
+                ll = [o.hot[0] + rnd(-18, 18), o.hot[1] + rnd(-35, 35)];
+                const [x, y] = M.project(ll[0], ll[1]).map(Math.round);
+                if (M.landCells.includes(y * g.cols + x) || ++tries > 6) { ll.x = x; ll.y = y; break; }
+              } while (true);
+              const edge = nearest(ll);
+              o.samples.push(ll); if (o.samples.length > 60) o.samples.shift();
+              P.send(g, [[ll.x, ll.y], [edge.x, edge.y]], {
+                glyph: "·", color: INK(0.55), speed: 2.5, trail: false,
+                onArrive: () => {
+                  edge.flash = Math.max(edge.flash, 0.5);
+                  const target = o.migrating ? null : o.city;
+                  if (!target) return;
+                  if (target === edge) { o.count++; o.flash = 1; return; }
+                  P.send(g, [[edge.x, edge.y], [target.x, target.y]], {
+                    glyph: "·", color: PNK(0.7), speed: 3.5,
+                    onArrive: () => { o.count++; o.flash = 1; },
+                  });
+                },
+              });
+            }
+            if (!o.migrating && g.t >= o.nextCheck && o.samples.length > 30) {
+              o.nextCheck = g.t + 160;
+              const cur = o.samples.reduce((s, ll) => s + hav(ll, o.city.ll), 0);
+              const best = bestCity(o.samples);
+              if (best.c !== o.city && best.cost < cur * 0.7) {
+                const from = o.city, to = best.c;
+                const before = rtt(cur / o.samples.length), after = rtt(best.cost / o.samples.length);
+                o.migrating = true;
+                event = `${o.name} moving ${from.code} → ${to.code} · avg rtt ${before}ms → ${after}ms`;
+                P.send(g, [[from.x, from.y], [to.x, to.y]], {
+                  glyph: "▓", color: PNK(1), speed: 1.6,
+                  onArrive: () => { o.city = to; o.migrating = false; o.flash = 1; event = `${o.name} now lives in ${to.code}`; },
+                });
+              }
+            }
+            o.flash = (o.flash || 0) * 0.88;
+          });
+          cities.forEach((c) => (c.flash *= 0.85));
+          T.step();
+          P.step(g, T);
+
+          objsEl.innerHTML = objects.map((o) => `${o.name} @ ${o.migrating ? "…" : o.city.code} · ${o.count}`).join(" &nbsp; ");
+          statusEl.innerHTML = `<b>${event}</b>`;
+        },
+        draw(g) {
+          drawLand(g, M, INK(0.12));
+          cities.forEach((c) => g.put(c.x, c.y, "o", c.flash > 0.3 ? INK(0.9) : INK(0.3)));
+          T.draw(g, (v) => PNK(0.35 * v));
+          P.draw(g);
+          objects.forEach((o) => {
+            if (o.migrating) return;
+            const c = o.flash > 0.4 ? PNK(1) : PNK(0.8);
+            g.put(o.city.x, o.city.y, "■", c);
+            g.text(o.city.x + 2, o.city.y - 1, o.name, c);
+            g.text(o.city.x + 2, o.city.y, `${o.city.code} #${o.count}`, INK(0.45));
+          });
+        },
+      });
+    </script>
+  </body>
+</html>

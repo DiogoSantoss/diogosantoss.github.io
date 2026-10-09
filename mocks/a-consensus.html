@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock A · Consensus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0c0c0d;
+        --ink: #e8e6e1;
+        --mid: rgba(232, 230, 225, 0.55);
+        --dim: rgba(232, 230, 225, 0.32);
+        --accent: #7dd3a8;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+      body { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14px; }
+      canvas { position: fixed; inset: 0; }
+      .content {
+        position: fixed;
+        left: 7vw;
+        top: 50%;
+        transform: translateY(-50%);
+        max-width: 38ch;
+      }
+      h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; }
+      h1::before { content: "$ "; color: var(--accent); }
+      p { margin-top: 18px; color: var(--mid); line-height: 1.7; }
+      nav { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; }
+      a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--dim); }
+      a:hover { color: var(--accent); border-color: var(--accent); }
+      footer {
+        position: fixed;
+        left: 7vw;
+        right: 7vw;
+        bottom: 28px;
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        color: var(--dim);
+        font-size: 12px;
+      }
+      @media (max-width: 760px) {
+        .content { top: 12vh; transform: none; left: 24px; right: 24px; }
+        footer { left: 24px; right: 24px; flex-direction: column; gap: 6px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <main class="content" id="content">
+      <h1>diogo santos</h1>
+      <p>
+        Software engineer at Cloudflare. Before that, distributed validators at
+        Obol / DV Labs. MSc thesis on asynchronous Byzantine consensus.
+      </p>
+      <nav>
+        <a href="https://github.com/DiogoSantoss">github</a>
+        <a href="https://www.linkedin.com/in/diogo-silva-santos/">linkedin</a>
+        <a href="https://x.com/l_Didas_l">x</a>
+        <a href="../cv-diogo-santos.pdf">cv</a>
+        <a href="../blog.html">blog</a>
+      </nav>
+    </main>
+    <footer id="footer">
+      <span id="status">n=7 f=2 quorum=5</span>
+      <span>@ propose &nbsp; o prevote &nbsp; * precommit &nbsp; x faulty</span>
+    </footer>
+
+    <script type="module">
+      import { startAscii } from "./grid.js";
+
+      const N = 7, F = 2, Q = 2 * F + 1, BYZ = 4, SPEED = 3;
+      const INK = (a) => `rgba(232,230,225,${a})`;
+      const ACCENT = "#7dd3a8";
+      const statusEl = document.getElementById("status");
+
+      let nodes, msgs, trail, later, honest, committed;
+
+      const leader = (h) => honest[h % honest.length];
+      const inc = (map, h) => map.set(h, (map.get(h) || 0) + 1);
+
+      function send(g, from, to, kind, h) {
+        const dx = to.x - from.x, dy = (to.y - from.y) * 2;
+        const dist = Math.hypot(dx, dy);
+        const jitter = 0.6 + Math.random() * 1.8; // asynchrony: unbounded-ish delays
+        msgs.push({ from, to, kind, h, t0: g.t, dur: Math.max(4, (dist / SPEED) * jitter) });
+      }
+      const broadcast = (g, from, kind, h) =>
+        nodes.forEach((n) => n !== from && send(g, from, n, kind, h));
+
+      function advance(g, n) {
+        for (;;) {
+          const h = n.h;
+          if (n.prop.has(h) && n.sentPv < h) {
+            n.sentPv = h; inc(n.pv, h); broadcast(g, n, "V", h); continue;
+          }
+          if ((n.pv.get(h) || 0) >= Q && n.sentPc < h) {
+            n.sentPc = h; inc(n.pc, h); broadcast(g, n, "C", h); continue;
+          }
+          if ((n.pc.get(h) || 0) >= Q) {
+            n.pv.delete(h); n.pc.delete(h); n.prop.delete(h);
+            n.h++; n.flash = 1;
+            committed = Math.max(committed, n.h);
+            if (leader(n.h) === n) {
+              const nh = n.h;
+              later.push({ at: g.t + 8, fn: () => { n.prop.add(nh); broadcast(g, n, "P", nh); advance(g, n); } });
+            }
+            continue;
+          }
+          return;
+        }
+      }
+
+      function receive(g, m) {
+        const n = m.to;
+        if (n.byz || m.kind === "X") return;
+        if (m.kind === "P") n.prop.add(m.h);
+        if (m.kind === "V") inc(n.pv, m.h);
+        if (m.kind === "C") inc(n.pc, m.h);
+        advance(g, n);
+      }
+
+      startAscii(document.getElementById("bg"), {
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: 13,
+        fps: 15,
+        bg: "#0c0c0d",
+        masks: [document.getElementById("content"), document.getElementById("footer")],
+        init(g) {
+          const narrow = g.cols < 90;
+          const cx = narrow ? g.cols / 2 : g.cols * 0.66;
+          const cy = narrow ? g.rows * 0.64 : g.rows * 0.48;
+          const rx = narrow ? g.cols * 0.36 : g.cols * 0.22;
+          const ry = narrow ? g.rows * 0.2 : g.rows * 0.34;
+          nodes = Array.from({ length: N }, (_, i) => {
+            const a = -Math.PI / 2 + (i * 2 * Math.PI) / N;
+            return {
+              i, byz: i === BYZ,
+              x: Math.round(cx + rx * Math.cos(a)),
+              y: Math.round(cy + ry * Math.sin(a)),
+              h: 0, sentPv: -1, sentPc: -1,
+              prop: new Set(), pv: new Map(), pc: new Map(), flash: 0,
+            };
+          });
+          honest = nodes.filter((n) => !n.byz);
+          msgs = []; later = []; committed = 0;
+          trail = new Float32Array(g.cols * g.rows);
+          const l = leader(0);
+          later.push({ at: 6, fn: () => { l.prop.add(0); broadcast(g, l, "P", 0); advance(g, l); } });
+        },
+        tick(g) {
+          g.t++;
+          const due = later.filter((e) => e.at <= g.t);
+          later = later.filter((e) => e.at > g.t);
+          due.forEach((e) => e.fn());
+
+          const byz = nodes[BYZ];
+          if (Math.random() < 0.12) {
+            const to = nodes[(BYZ + 1 + Math.floor(Math.random() * (N - 1))) % N];
+            send(g, byz, to, "X", -1);
+          }
+
+          for (let i = 0; i < trail.length; i++) trail[i] *= 0.88;
+
+          const arrived = [];
+          msgs = msgs.filter((m) => {
+            const p = (g.t - m.t0) / m.dur;
+            if (p >= 1) { arrived.push(m); return false; }
+            m.x = m.from.x + (m.to.x - m.from.x) * p;
+            m.y = m.from.y + (m.to.y - m.from.y) * p;
+            const cx = Math.round(m.x), cy = Math.round(m.y);
+            if (cx >= 0 && cy >= 0 && cx < g.cols && cy < g.rows) trail[cy * g.cols + cx] = 1;
+            return true;
+          });
+          arrived.forEach((m) => receive(g, m));
+          nodes.forEach((n) => (n.flash *= 0.9));
+
+          statusEl.textContent = `n=${N} f=${F} quorum=${Q} · height ${committed} · in-flight ${msgs.length}`;
+        },
+        draw(g) {
+          for (let y = 0; y < g.rows; y++) {
+            for (let x = 0; x < g.cols; x++) {
+              const v = trail[y * g.cols + x];
+              if (v > 0.05) g.put(x, y, "·", INK(0.32 * v));
+            }
+          }
+          const glyph = { P: "@", V: "o", C: "*", X: "x" };
+          msgs.forEach((m) => {
+            const color = m.kind === "X" ? INK(0.3) : m.kind === "P" ? INK(0.95) : INK(0.7);
+            g.put(m.x, m.y, glyph[m.kind], color);
+          });
+          nodes.forEach((n) => {
+            const color = n.byz ? INK(0.35) : n.flash > 0.08 ? ACCENT : INK(0.85);
+            const [tl, hz, tr, vt, bl, br] = n.byz ? ["+", "-", "+", ":", "+", "+"] : ["┌", "─", "┐", "│", "└", "┘"];
+            const x0 = n.x - 3;
+            g.text(x0, n.y - 1, tl + hz.repeat(5) + tr, color);
+            g.text(x0, n.y, vt, color);
+            g.text(x0 + 2, n.y, `n${n.i}`, color);
+            g.text(x0 + 6, n.y, vt, color);
+            g.text(x0, n.y + 1, bl + hz.repeat(5) + br, color);
+            g.text(x0, n.y + 2, n.byz ? "faulty" : `h:${n.h}`, INK(0.3));
+          });
+        },
+      });
+    </script>
+  </body>
+</html>
