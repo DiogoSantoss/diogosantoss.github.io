@@ -329,7 +329,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
       }
       relayout();
       inorder(root).forEach((n) => { n.x = n.tx; n.y = n.ty; });
-      nextChange = g.t + 140;
+      nextChange = g.t + (lost ? 70 : 35);
       try {
         const sb = JSON.parse(sessionStorage.getItem("servedBy") || "null");
         sessionStorage.removeItem("servedBy");
@@ -352,7 +352,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
         const next = n <= MIN_S + 1 ? "add" : n >= MAX_S - 1 ? "remove" : lastAuto === "add" ? "remove" : "add";
         next === "add" ? addServer() : removeServer();
         lastAuto = next;
-        nextChange = g.t + rnd(300, 400);
+        nextChange = g.t + rnd(150, 220);
       }
       if (!cur && steps.length && g.t >= waitUntil) {
         const s = steps.shift();
