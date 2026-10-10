@@ -1,0 +1,16 @@
+assets/ring.js
+  h_40929dfac5923b 332,355
+work.html
+  h_40929dfac5923b 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "686c7503159d6f8bd330e1b23929ff2eaee28891",
+  "prompts": {},
+  "humans": {
+    "h_40929dfac5923b": {
+      "author": "Diogo Santos <59585571+DiogoSantoss@users.noreply.github.com>"
+    }
+  }
+}
