@@ -1,0 +1,16 @@
+index.html
+  h_40929dfac5923b 7,17,37
+work.html
+  h_40929dfac5923b 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f81634ac313c34f6430ec48220658f39492324fb",
+  "prompts": {},
+  "humans": {
+    "h_40929dfac5923b": {
+      "author": "Diogo Santos <59585571+DiogoSantoss@users.noreply.github.com>"
+    }
+  }
+}
