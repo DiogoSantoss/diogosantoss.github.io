@@ -1,0 +1,18 @@
+assets/ring.js
+  h_40929dfac5923b 44-45,247,255-264,297,309,313,315-319,323,474
+assets/site.css
+  h_40929dfac5923b 54
+assets/webring.js
+  h_40929dfac5923b 13-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5a9ec57f75855da6c766e39d4ed1e29221ffe42d",
+  "prompts": {},
+  "humans": {
+    "h_40929dfac5923b": {
+      "author": "Diogo Santos <59585571+DiogoSantoss@users.noreply.github.com>"
+    }
+  }
+}
