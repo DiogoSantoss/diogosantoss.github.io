@@ -41,6 +41,8 @@ export function startRing({ canvas, content, footer, status, lost }) {
   let lastAuto = "remove";
   let root, nid, servers, nameIdx, steps, cur, waitUntil, focus, msg, keys, lookups, ghosts, sparks, life, nextChange, mode, note, hover, userUntil, entering;
   let X0, RW, cx, cy, R, ASP, treeY, gapY, slot, ringN, compact, backdrop, tm, G;
+  // hidden: a phone with no room for the ring; staged: the ring takes the whole screen for a page change
+  let hidden = false, staged = false;
 
   const label = (n) => `${n.srv}:${hex(n.k)}`;
   const h = (n) => (n ? n.h : 0);
@@ -242,6 +244,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
       if (keys.some((k) => k.nav && !k.nav.lost)) return;
       const route = a.dataset.route;
       const rect = a.getBoundingClientRect();
+      if (hidden) stage();
       sendFrom(rect.left + rect.width / 2, rect.top + rect.height / 2, { k: hashPath(route), nav: { href, route } });
       note = { text: `GET ${route} · hash ${hex(hashPath(route))}`, t: G.t, ok: true, u: true, hold: true };
       logEv(`you: GET ${route} · hash ${hex(hashPath(route))}`, "u");
@@ -249,6 +252,16 @@ export function startRing({ canvas, content, footer, status, lost }) {
     });
   });
 
+  // the text fades out and the ring fills the screen, so the request is visible on phones too
+  function stage() {
+    staged = true;
+    document.body.classList.add("staging");
+    G.masks = [];
+    layout(G);
+    relayout();
+  }
+
+  window.addEventListener("pageshow", (e) => { if (e.persisted && staged) location.reload(); });
   window.addEventListener("pageshow", (e) => { if (e.persisted) { document.body.classList.remove("leaving"); entering = null; keys = keys.filter((k) => !k.nav); note = null; } });
 
   window.addEventListener("mousemove", (e) => {
@@ -281,6 +294,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
     const portrait = window.innerWidth < 760;
     compact = portrait;
     backdrop = false;
+    hidden = false;
     if (!portrait) {
       X0 = Math.ceil(rect.right / g.cw) + 4;
       RW = g.cols - X0 - 3;
@@ -292,17 +306,21 @@ export function startRing({ canvas, content, footer, status, lost }) {
       const top = Math.ceil(rect.bottom / g.ch) + 2;
       const bottom = g.rows - (footer && getComputedStyle(footer).display !== "none" ? 4 : 2);
       const avail = bottom - top;
-      if (avail >= 16 && rect.bottom < window.innerHeight) {
+      if (avail >= 28 && rect.bottom < window.innerHeight) {
         R = Math.min(g.cols * 0.36, (avail / 2 - 2) * ASP);
         cx = g.cols / 2;
         cy = Math.round(top + avail / 2);
-      } else backdrop = true;
+      } else backdrop = hidden = true;
     }
-    if (backdrop) {
+    if (staged) {
+      backdrop = hidden = false;
+      R = g.cols * 0.38;
+      cx = g.cols / 2; cy = Math.round(g.rows / 2);
+    } else if (backdrop) {
       R = Math.min(g.cols * 0.42, g.rows * 0.4 * ASP);
       cx = g.cols / 2; cy = Math.round(g.rows / 2);
     }
-    canvas.style.opacity = backdrop ? "0.32" : "1";
+    canvas.style.opacity = hidden ? "0" : backdrop ? "0.32" : "1";
     gapY = compact ? 2 : 3;
     treeY = Math.round(cy - 2.5 * gapY);
     ringN = Math.ceil(TAU * R * 1.6);
@@ -453,6 +471,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
       }
     },
     draw(g) {
+      if (hidden) return;
       const nodes = inorder(root);
       const fset = new Set(focus);
       const lset = new Set(lookups.flatMap((l) => l.path));

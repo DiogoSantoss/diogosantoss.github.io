@@ -51,6 +51,7 @@ li .what b { color: var(--ink); font-weight: 500; }
 
 body.leaving .content, body.leaving .webring { opacity: 0; }
 body.leaving canvas { opacity: 0 !important; }
+body.staging .content, body.staging .webring { opacity: 0; pointer-events: none; }
 @keyframes arrive { from { opacity: 0; } }
 
 @media (max-width: 760px) {
