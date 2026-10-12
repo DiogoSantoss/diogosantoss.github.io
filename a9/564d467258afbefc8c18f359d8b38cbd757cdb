@@ -1,0 +1,16 @@
+assets/grid.js
+  h_40929dfac5923b 51-63,81
+assets/ring.js
+  h_40929dfac5923b 45,247,265-273,370-371,373,454,474-475
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a9564d467258afbefc8c18f359d8b38cbd757cdb",
+  "prompts": {},
+  "humans": {
+    "h_40929dfac5923b": {
+      "author": "Diogo Santos <59585571+DiogoSantoss@users.noreply.github.com>"
+    }
+  }
+}
