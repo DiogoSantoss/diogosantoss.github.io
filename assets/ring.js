@@ -42,7 +42,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
   let root, nid, servers, nameIdx, steps, cur, waitUntil, focus, msg, keys, lookups, ghosts, sparks, life, nextChange, mode, note, hover, userUntil, entering;
   let X0, RW, cx, cy, R, ASP, treeY, gapY, slot, ringN, compact, backdrop, tm, G;
   // hidden: a phone with no room for the ring; staged: the ring takes the whole screen for a page change
-  let hidden = false, staged = false;
+  let hidden = false, staged = false, unstageAt = 0;
 
   const label = (n) => `${n.srv}:${hex(n.k)}`;
   const h = (n) => (n ? n.h : 0);
@@ -244,6 +244,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
       if (keys.some((k) => k.nav && !k.nav.lost)) return;
       const route = a.dataset.route;
       const rect = a.getBoundingClientRect();
+      unstageAt = 0;
       if (hidden) stage();
       sendFrom(rect.left + rect.width / 2, rect.top + rect.height / 2, { k: hashPath(route), nav: { href, route } });
       note = { text: `GET ${route} · hash ${hex(hashPath(route))}`, t: G.t, ok: true, u: true, hold: true };
@@ -257,6 +258,15 @@ export function startRing({ canvas, content, footer, status, lost }) {
     staged = true;
     document.body.classList.add("staging");
     G.masks = [];
+    layout(G);
+    relayout();
+  }
+
+  // back to the text once the ring has shown what it had to show (the 404)
+  function unstage() {
+    staged = false;
+    document.body.classList.remove("staging");
+    G.remask();
     layout(G);
     relayout();
   }
@@ -357,8 +367,10 @@ export function startRing({ canvas, content, footer, status, lost }) {
     tick(g) {
       g.t++;
 
-      if (lost && !lostSent && root && g.t >= 20) {
+      // with the ring hidden, give the text a moment to be read before the ring takes the screen
+      if (lost && !lostSent && root && g.t >= (hidden ? 28 : 20)) {
         lostSent = true;
+        if (hidden) stage();
         const r = (lost.el || content).getBoundingClientRect();
         sendFrom(r.left + r.width / 2, r.top + r.height / 2, { k: hashPath(lost.path), nav: { route: lostRoute, href: null, lost: true } });
         note = { text: `GET ${lostRoute} · hash ${hex(hashPath(lost.path))}`, t: g.t, ok: true, u: true, hold: true };
@@ -439,6 +451,7 @@ export function startRing({ canvas, content, footer, status, lost }) {
           if (key.nav && key.nav.lost) {
             note = { text: `404 ${key.nav.route} · server ${o.srv} owns this key, but has nothing there`, t: g.t, ok: false };
             logEv(`404 ${key.nav.route} · ${o.srv} has nothing there`, "d");
+            if (staged) unstageAt = g.t + 30;
           } else if (key.nav) {
             entering = { node: o, t: g.t, href: key.nav.href };
             try { sessionStorage.setItem("servedBy", JSON.stringify({ route: key.nav.route, srv: o.srv, k: hex(o.k) })); } catch {}
@@ -457,6 +470,8 @@ export function startRing({ canvas, content, footer, status, lost }) {
       });
       lookups = lookups.filter((l) => g.t - l.t < (l.user ? 24 : 8));
       if (note && !note.hold && g.t - note.t > (note.ok ? 70 : 40)) note = null;
+
+      if (unstageAt && g.t >= unstageAt && !entering) { unstageAt = 0; unstage(); }
 
       if (entering && g.t - entering.t === 10) {
         document.body.classList.add("leaving");

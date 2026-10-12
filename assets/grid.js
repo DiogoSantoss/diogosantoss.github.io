@@ -48,6 +48,19 @@ export async function startAscii(canvas, opts) {
     for (let i = 0; i < str.length; i++) g.put(x + i, y, str[i], color);
   };
 
+  // cells hidden behind page elements, so the drawing never covers text
+  g.remask = () => {
+    g.masks = masks.map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x0: Math.floor(r.left / g.cw) - maskPad[0],
+        x1: Math.ceil(r.right / g.cw) + maskPad[0],
+        y0: Math.floor(r.top / g.ch) - maskPad[1],
+        y1: Math.ceil(r.bottom / g.ch) + maskPad[1],
+      };
+    });
+  };
+
   let w = 0;
   let h = 0;
   function resize() {
@@ -65,15 +78,7 @@ export async function startAscii(canvas, opts) {
     g.ch = Math.round(fontSize * lineHeight);
     g.cols = Math.ceil(w / g.cw);
     g.rows = Math.ceil(h / g.ch);
-    g.masks = masks.map((el) => {
-      const r = el.getBoundingClientRect();
-      return {
-        x0: Math.floor(r.left / g.cw) - maskPad[0],
-        x1: Math.ceil(r.right / g.cw) + maskPad[0],
-        y0: Math.floor(r.top / g.ch) - maskPad[1],
-        y1: Math.ceil(r.bottom / g.ch) + maskPad[1],
-      };
-    });
+    g.remask();
     g.t = 0;
     init(g);
   }
