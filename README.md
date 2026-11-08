@@ -1,6 +1,6 @@
 # diogoms.com
 
-Personal site. Plain HTML, CSS and ES modules, no build step. The background is a consistent hash ring backed by an AVL tree, drawn as ASCII on a canvas (`assets/ring.js`, `assets/grid.js`).
+Personal site. Plain HTML, CSS and ES modules, no build step. The background is a BGP mesh: autonomous systems exchange route announcements and withdrawals, drawn as ASCII on a canvas (`assets/bgp.js`, `assets/grid.js`).
 
 Run locally (clean URLs and 404 page like GitHub Pages):
 

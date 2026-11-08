@@ -1,4 +1,4 @@
-// Shared character-grid renderer for the mocks. Each mock supplies init/tick/draw.
+// Shared character-grid renderer for the site background and the mocks. Each mock supplies init/tick/draw.
 export async function startAscii(canvas, opts) {
   const {
     fontFamily,

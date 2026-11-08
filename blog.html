@@ -28,21 +28,20 @@
     <canvas id="bg" aria-hidden="true"></canvas>
     <main class="content" id="content">
       <nav class="pages">
-        <a href="/" data-route="/">home</a>
-        <a href="/work" data-route="/work">work</a>
-        <a href="/gear" data-route="/gear">gear</a>
-        <a href="/blog" data-route="/blog" aria-current="page">blog</a>
+        <a href="/">home</a>
+        <a href="/work">work</a>
+        <a href="/gear">gear</a>
+        <a href="/blog" aria-current="page">blog</a>
       </nav>
       <h1>Blog</h1>
       <p>Under construction. This server is still joining the ring.</p>
       <p><span class="a">+ blog:booting</span> <span class="blink">▍</span></p>
     </main>
     <script type="module">
-      import { startRing } from "/assets/ring.js";
-      startRing({
+      import { startBgp } from "/assets/bgp.js";
+      startBgp({
         canvas: document.getElementById("bg"),
         content: document.getElementById("content"),
-
       });
     </script>
   </body>

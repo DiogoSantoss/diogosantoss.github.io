@@ -38,7 +38,7 @@ p { margin-top: 16px; color: var(--mid); line-height: 1.7; }
 .ball { height: 1.15em; width: auto; vertical-align: -0.22em; }
 .email { margin-top: 10px; }
 .links { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; }
-/* fixed size so the ring's masks stay right when the webring loads */
+/* fixed size so the background's masks stay right when the webring loads */
 .webring { position: fixed; left: 5vw; right: 5vw; bottom: 22px; min-height: 1.7em; align-items: center; justify-content: center; display: flex; gap: 12px; white-space: nowrap; overflow: hidden; font-size: 12.5px; color: var(--dim); }
 .webring a { color: var(--mid); }
 code { font-family: inherit; color: var(--usr); }
@@ -51,9 +51,6 @@ li .what b { color: var(--ink); font-weight: 500; }
 
 .u { color: var(--usr); } .r { color: var(--req); } .a { color: var(--add); } .d { color: var(--del); }
 
-body.leaving .content, body.leaving .webring { opacity: 0; }
-body.leaving canvas { opacity: 0 !important; }
-body.staging .content, body.staging .webring { opacity: 0; pointer-events: none; }
 @keyframes arrive { from { opacity: 0; } }
 
 @media (max-width: 760px) {

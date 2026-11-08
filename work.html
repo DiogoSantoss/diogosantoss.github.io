@@ -28,10 +28,10 @@
     <canvas id="bg" aria-hidden="true"></canvas>
     <main class="content" id="content">
       <nav class="pages">
-        <a href="/" data-route="/">home</a>
-        <a href="/work" data-route="/work" aria-current="page">work</a>
-        <a href="/gear" data-route="/gear">gear</a>
-        <a href="/blog" data-route="/blog">blog</a>
+        <a href="/">home</a>
+        <a href="/work" aria-current="page">work</a>
+        <a href="/gear">gear</a>
+        <a href="/blog">blog</a>
       </nav>
       <h1>Work</h1>
       <h2>experience</h2>
@@ -55,11 +55,10 @@
       </ul>
     </main>
     <script type="module">
-      import { startRing } from "/assets/ring.js";
-      startRing({
+      import { startBgp } from "/assets/bgp.js";
+      startBgp({
         canvas: document.getElementById("bg"),
         content: document.getElementById("content"),
-
       });
     </script>
   </body>

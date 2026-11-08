@@ -29,23 +29,23 @@
     <canvas id="bg" aria-hidden="true"></canvas>
     <main class="content" id="content">
       <nav class="pages">
-        <a href="/" data-route="/">home</a>
-        <a href="/work" data-route="/work">work</a>
-        <a href="/gear" data-route="/gear">gear</a>
-        <a href="/blog" data-route="/blog">blog</a>
+        <a href="/">home</a>
+        <a href="/work">work</a>
+        <a href="/gear">gear</a>
+        <a href="/blog">blog</a>
       </nav>
       <h1>404</h1>
       <p>No page at <code id="lost-path">this path</code>.</p>
-      <div class="links"><a href="/" data-route="/">back home</a></div>
+      <div class="links"><a href="/">back home</a></div>
     </main>
     <script type="module">
-      import { startRing } from "/assets/ring.js";
-      startRing({
+      import { startBgp } from "/assets/bgp.js";
+      startBgp({
         canvas: document.getElementById("bg"),
         content: document.getElementById("content"),
-
-        lost: { path: location.pathname, el: document.getElementById("lost-path") },
       });
+      const path = location.pathname;
+      document.getElementById("lost-path").textContent = path.length > 28 ? path.slice(0, 27) + "…" : path;
     </script>
   </body>
 </html>
