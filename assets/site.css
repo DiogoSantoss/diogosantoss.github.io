@@ -53,11 +53,24 @@ li .what b { color: var(--ink); font-weight: 500; }
 
 @keyframes arrive { from { opacity: 0; } }
 
+/* gear: the 3D sketch sits on its own canvas above the background; the list is pinned near the top */
+#scene { position: fixed; inset: 0; cursor: grab; touch-action: none; }
+#scene-mask { display: none; } /* on phones it keeps the mesh out from under the sketch */
+.gear .content { top: max(40px, calc(50vh - 360px)); transform: none; }
+.tabs { display: flex; gap: 14px; margin: 18px 0 4px; font-size: 13px; }
+.tabs button { all: unset; cursor: pointer; color: var(--mid); }
+.tabs button[aria-pressed="true"] { color: var(--ink); }
+.tabs button[aria-pressed="true"]::before { content: "▸ "; color: var(--req); }
+li[data-id] { cursor: default; }
+li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
+
 @media (max-width: 760px) {
   body { font-size: 14px; }
   .content { left: 22px; right: 22px; width: auto; top: 22px; transform: none; max-height: calc(100vh - 90px); }
   .pages { margin-bottom: 18px; }
   .webring { left: 22px; right: 22px; bottom: 14px; }
+  .gear .content { top: 46vh; max-height: calc(54vh - 20px); }
+  #scene-mask { display: block; position: fixed; left: 0; right: 0; top: 0; height: 46vh; pointer-events: none; }
   h1 { font-size: 23px; }
   h2 { margin: 18px 0 8px; }
   li { grid-template-columns: 7.5ch 1fr; gap: 10px; }

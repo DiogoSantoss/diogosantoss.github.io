@@ -94,7 +94,9 @@ function note(x, y, str, color, life = 48) {
 
 function announce(g) {
   const used = new Set(prefixes.map((p) => p.origin));
-  const origin = pick(mesh.nodes.map((_, i) => i).filter((i) => !used.has(i)));
+  const free = mesh.nodes.map((_, i) => i).filter((i) => !used.has(i));
+  if (!free.length) return;
+  const origin = pick(free);
   const len = pick([20, 22, 23, 24]);
   const pfx = `${rnd(100, 223)}.${rnd(0, 255)}.${len > 22 ? rnd(0, 255) : 0}.0/${len}`;
   const p = { pfx, origin, color: COLORS[nextColor++ % COLORS.length], born: g.t, ...bestPaths(origin), withdrawn: -1 };
@@ -116,6 +118,7 @@ function withdraw(g, p) {
 
 // a session drops; every prefix whose tree used it reconverges
 function sessionDown(g) {
+  if (!mesh.edges.length) return;
   const live = prefixes.filter((p) => p.withdrawn < 0);
   const used = mesh.edges.filter((e) => live.some((p) => p.parent[e.a] === e.b || p.parent[e.b] === e.a));
   const e = used.length ? pick(used) : pick(mesh.edges);
@@ -147,7 +150,9 @@ function hijack(g) {
   const live = prefixes.filter((p) => p.withdrawn < 0);
   if (!live.length) return sessionDown(g);
   const victim = pick(live);
-  const from = pick(mesh.nodes.map((_, i) => i).filter((i) => i !== victim.origin));
+  const others = mesh.nodes.map((_, i) => i).filter((i) => i !== victim.origin);
+  if (!others.length) return;
+  const from = pick(others);
   const [net] = victim.pfx.split("/");
   const o = mesh.nodes[from];
   note(o.x, o.y, `AS${asn[from]} UPDATE ${net}/25 · RPKI invalid · dropped`, DEL, 70);
@@ -200,7 +205,7 @@ export function startBgp({ canvas, content, footer }) {
       });
 
       // keepalives: a small dot crosses a random session now and then
-      if (Math.random() < 0.25) {
+      if (mesh.edges.length && Math.random() < 0.25) {
         const e = pick(mesh.edges);
         if (sessions[e.id].state === "up") keepalives.push({ e, t: g.t, back: Math.random() < 0.5 });
       }
