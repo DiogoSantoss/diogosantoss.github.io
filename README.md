@@ -14,6 +14,5 @@ CSS and JS links carry a `?v=YYYYMMDD` version, because GitHub Pages lets browse
 
 Every page loads one module, `assets/app.js`. It starts the background once and handles internal links itself: it fetches the next page (already on hover or touch), swaps the content with a short cross-fade, and leaves the mesh and the page links in place. Each page names its script with `<body data-page="…">`.
 
-The work page draws a timeline of emails moving through a mail system with three.js (`assets/work/timeline.js`). `assets/vendor/three.js` is a tree-shaken, minified build of three.js r187 (MIT) that holds only the classes the timeline uses.
 
-The 88×31 buttons on the home page are by Cody Collier ([a90.com/experiments/88x31](https://a90.com/experiments/88x31/), "Take one."). They are hosted here and each links back to his page.
+The 88×31 buttons in the footer of every page are by Cody Collier ([a90.com/experiments/88x31](https://a90.com/experiments/88x31/), "Take one."). They are hosted here and each links back to his page.

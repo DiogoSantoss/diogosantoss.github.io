@@ -6,8 +6,8 @@
 // flies the camera over to that group.
 // With `edit`, the "e" key opens a layout editor: drag the things on the desk around, turn them with
 // , and . and resize the desk. The layout is kept in localStorage; "copy" puts the values on the clipboard.
-import { GROUPS, ITEMS, DESK, setDesk } from "./scene.js?v=20261115";
-import { createView, worldBoxes } from "./engine.js?v=20261115";
+import { GROUPS, ITEMS, DESK, setDesk } from "./scene.js?v=20261116";
+import { createView, worldBoxes } from "./engine.js?v=20261116";
 
 const INK = (a) => `rgba(233,235,238,${a})`;
 const REQ = (a) => `rgba(108,182,255,${a})`;
@@ -53,7 +53,8 @@ export function startGear({ canvas, content, edit: editable = false }) {
       return { x: 10, y, w: innerWidth - 20, h: innerHeight * 0.46 - y - 8 };
     }
     const r = content.getBoundingClientRect(), x = r.right + 40;
-    return { x, y: 40, w: innerWidth - x - 40, h: innerHeight - 80 };
+    // above the footer (badges and webring)
+    return { x, y: 40, w: innerWidth - x - 40, h: innerHeight - 40 - 116 };
   }
 
   // the camera state that moves when flying between groups
