@@ -11,7 +11,7 @@
 // - Keepalives tick quietly along every session.
 // It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
 // Elements passed in `masks` keep the mesh out from under them entirely (the gear sketch on phones).
-import { startAscii } from "./grid.js?v=20261118";
+import { startAscii } from "./grid.js?v=20261119";
 
 const BG = "#0b0c0e";
 const INK = (a) => `rgba(233,235,238,${a})`;
@@ -162,7 +162,7 @@ function easeFade() {
 const dim = (color, f) => (f >= 1 ? color : color.replace(/,([\d.]+)\)$/, (_, a) => `,${(+a * f).toFixed(3)})`));
 
 // Resolves to { setMasks, refit }. The site swaps pages without reloading, so the mesh keeps running:
-// `refit` re-reads where the text is, `setMasks` changes the masked areas (this rebuilds the mesh).
+// `refit` re-reads where the text is, `setMasks` changes the masked areas. Neither rebuilds the mesh.
 export async function startBgp({ canvas, masks = [] }) {
   const grid_ = await startAscii(canvas, {
     fontFamily: '"Spline Sans Mono", monospace',

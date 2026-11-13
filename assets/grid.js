@@ -1,5 +1,5 @@
 // Shared character-grid renderer for the site background and the mocks. Each mock supplies init/tick/draw.
-// Resolves to { setMasks }: new mask elements rebuild the grid (and call init again).
+// Resolves to { setMasks }: new mask elements only change which cells are drawn; the animation keeps going.
 export async function startAscii(canvas, opts) {
   let {
     fontFamily,
@@ -51,6 +51,19 @@ export async function startAscii(canvas, opts) {
 
   let w = 0;
   let h = 0;
+  // cells under a mask are not drawn; hidden elements (no size) mask nothing
+  function readMasks() {
+    g.masks = masks
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width && r.height)
+      .map((r) => ({
+        x0: Math.floor(r.left / g.cw) - maskPad[0],
+        x1: Math.ceil(r.right / g.cw) + maskPad[0],
+        y0: Math.floor(r.top / g.ch) - maskPad[1],
+        y1: Math.ceil(r.bottom / g.ch) + maskPad[1],
+      }));
+  }
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     w = window.innerWidth;
@@ -66,15 +79,7 @@ export async function startAscii(canvas, opts) {
     g.ch = Math.round(fontSize * lineHeight);
     g.cols = Math.ceil(w / g.cw);
     g.rows = Math.ceil(h / g.ch);
-    g.masks = masks.map((el) => {
-      const r = el.getBoundingClientRect();
-      return {
-        x0: Math.floor(r.left / g.cw) - maskPad[0],
-        x1: Math.ceil(r.right / g.cw) + maskPad[0],
-        y0: Math.floor(r.top / g.ch) - maskPad[1],
-        y1: Math.ceil(r.bottom / g.ch) + maskPad[1],
-      };
-    });
+    readMasks();
     g.t = 0;
     init(g);
   }
@@ -110,7 +115,7 @@ export async function startAscii(canvas, opts) {
     }
   }
 
-  const control = { setMasks(els) { masks = els; resize(); if (reduce) warmStatic(); } };
+  const control = { setMasks(els) { masks = els; readMasks(); if (reduce) render(); } };
   resize();
   if (reduce) {
     warmStatic();

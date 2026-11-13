@@ -2,7 +2,7 @@
 // on internal links itself: it fetches the next page, swaps the page content in place and keeps the
 // background, the page links and the fonts as they are. The mesh does not restart between pages.
 // Each page sets <body data-page="…">; `PAGES` starts that page's script and stops it again on leave.
-import { startBgp } from "./bgp.js?v=20261118";
+import { startBgp } from "./bgp.js?v=20261119";
 
 const V = new URL(import.meta.url).searchParams.get("v") || "";
 // the background, the page links and the footer (badges, webring) stay through page swaps
@@ -80,15 +80,13 @@ async function go(url, push) {
     if (push) history.pushState(null, "", url.href);
     here = url.pathname;
     page = start();
-    const m = masks();
-    if (m.length || bgp.masked) bgp.setMasks(m), (bgp.masked = m.length > 0);
+    bgp.setMasks(masks());
     bgp.refit();
     document.getElementById("content")?.focus({ preventScroll: true });
   };
   if (document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) document.startViewTransition(swap);
   else swap();
 }
-bgp.masked = masks().length > 0;
 
 addEventListener("click", (e) => {
   const a = e.target.closest("a[href]");
