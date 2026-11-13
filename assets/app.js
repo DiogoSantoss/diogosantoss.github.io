@@ -2,7 +2,7 @@
 // on internal links itself: it fetches the next page, swaps the page content in place and keeps the
 // background, the page links and the fonts as they are. The mesh does not restart between pages.
 // Each page sets <body data-page="…">; `PAGES` starts that page's script and stops it again on leave.
-import { startBgp } from "./bgp.js?v=20261128";
+import { startBgp } from "./bgp.js?v=20261129";
 
 const V = new URL(import.meta.url).searchParams.get("v") || "";
 // the background, the page links and the footer (badges, webring) stay through page swaps
