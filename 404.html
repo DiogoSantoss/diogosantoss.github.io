@@ -23,7 +23,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@l_Didas_l" />
     <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261113" />
   </head>
   <body>
     <canvas id="bg" aria-hidden="true"></canvas>
@@ -39,7 +39,7 @@
       <div class="links"><a href="/">back home</a></div>
     </main>
     <script type="module">
-      import { startBgp } from "/assets/bgp.js";
+      import { startBgp } from "/assets/bgp.js?v=20261113";
       startBgp({ canvas: document.getElementById("bg") });
       const path = location.pathname;
       document.getElementById("lost-path").textContent = path.length > 28 ? path.slice(0, 27) + "…" : path;

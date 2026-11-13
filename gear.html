@@ -22,7 +22,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@l_Didas_l" />
     <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/site.css" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261113" />
   </head>
   <body class="gear">
     <canvas id="bg" aria-hidden="true"></canvas>
@@ -75,8 +75,8 @@
       </section>
     </main>
     <script type="module">
-      import { startBgp } from "/assets/bgp.js";
-      import { startGear } from "/assets/gear/sketch.js";
+      import { startBgp } from "/assets/bgp.js?v=20261113";
+      import { startGear } from "/assets/gear/sketch.js?v=20261113";
       const content = document.getElementById("content");
       startBgp({ canvas: document.getElementById("bg"), masks: [document.getElementById("scene-mask")] });
       startGear({ canvas: document.getElementById("scene"), content, edit: new URLSearchParams(location.search).has("edit") });

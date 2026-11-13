@@ -11,7 +11,7 @@
 // - Keepalives tick quietly along every session.
 // It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
 // Elements passed in `masks` keep the mesh out from under them; the page text sits on translucent panels instead.
-import { startAscii } from "./grid.js";
+import { startAscii } from "./grid.js?v=20261113";
 
 const BG = "#0b0c0e";
 const INK = (a) => `rgba(233,235,238,${a})`;
@@ -59,7 +59,7 @@ function buildMesh(g, W = 16, H = 7) {
 const HOP = 4; // ticks per AS hop, roughly the MRAI timer
 const COLORS = [REQ, ADD, (a) => `rgba(186,148,255,${a})`];
 
-let mesh, asn, jitter, prefixes, sessions, keepalives, nextColor, buf;
+let mesh, asn, jitter, prefixes, sessions, keepalives, nextColor, buf, fade;
 
 // best path from every AS to the origin over the sessions that are up
 function bestPaths(origin) {
@@ -135,6 +135,30 @@ function hijack(g) {
   victim.hijack = { from, t: g.t };
 }
 
+// How bright the mesh is in each cell: full in the open, dimmer close to a text panel and darker still
+// under it, so the lines fade into the back of the text instead of stopping at its edge.
+const PANELS = ".content, .pages, .webring";
+function fadeMap(g) {
+  const rects = [...document.querySelectorAll(PANELS)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height);
+  const out = new Float32Array(g.cols * g.rows);
+  const smooth = (t) => t * t * (3 - 2 * t);
+  for (let y = 0; y < g.rows; y++)
+    for (let x = 0; x < g.cols; x++) {
+      const px = (x + 0.5) * g.cw, py = (y + 0.5) * g.ch;
+      let f = 1;
+      for (const r of rects) {
+        const dx = Math.max(r.left - px, px - r.right), dy = Math.max(r.top - py, py - r.bottom);
+        // signed distance to the panel edge: positive outside, negative inside
+        const d = dx > 0 || dy > 0 ? Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) : Math.max(dx, dy);
+        const v = d >= 48 ? 1 : d >= 0 ? 0.4 + 0.6 * smooth(d / 48) : 0.12 + 0.28 * smooth(Math.max(0, 1 + d / 36));
+        f = Math.min(f, v);
+      }
+      out[y * g.cols + x] = f;
+    }
+  return out;
+}
+const dim = (color, f) => (f >= 1 ? color : color.replace(/,([\d.]+)\)$/, (_, a) => `,${(+a * f).toFixed(3)})`));
+
 export function startBgp({ canvas, masks = [] }) {
   startAscii(canvas, {
     fontFamily: '"Spline Sans Mono", monospace',
@@ -144,6 +168,7 @@ export function startBgp({ canvas, masks = [] }) {
     bg: BG,
     masks: masks.filter(Boolean),
     init(g) {
+      fade = fadeMap(g);
       mesh = buildMesh(g);
       asn = mesh.nodes.map((_, i) => 64512 + i * 3 + rnd(0, 3));
       asn[rnd(0, asn.length)] = 13335;
@@ -154,6 +179,8 @@ export function startBgp({ canvas, masks = [] }) {
     },
     tick(g) {
       g.t++;
+      // panels change size (the webring loads, gear tabs switch), so refresh the fade now and then
+      if (g.t % 12 === 0) fade = fadeMap(g);
       // a new prefix every ~4 s; with three live, the oldest is withdrawn instead
       if (g.t % 50 === 4) {
         const live = prefixes.filter((p) => p.withdrawn < 0);
@@ -251,7 +278,7 @@ export function startBgp({ canvas, masks = [] }) {
       // faint ASN under every router
       nodes.forEach((n, i) => [...String(asn[i])].forEach((c, k) => put(n.x - 2 + k, n.y + 1, c, INK(asn[i] === 13335 ? 0.16 : 0.08), 3)));
 
-      for (const v of buf.values()) g.put(v.x, v.y, v.c, v.color);
+      for (const v of buf.values()) g.put(v.x, v.y, v.c, dim(v.color, fade[v.y * g.cols + v.x] ?? 1));
     },
   });
 }

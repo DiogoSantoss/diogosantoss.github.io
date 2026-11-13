@@ -9,3 +9,5 @@ python3 mocks/serve.py 4321
 ```
 
 `mocks/` holds design experiments. It is excluded from the published site by `_config.yml`.
+
+CSS and JS links carry a `?v=YYYYMMDD` version, because GitHub Pages lets browsers cache assets for 10 minutes. Bump it in the HTML pages and in the module imports when a change must reach visitors at once.
