@@ -133,36 +133,55 @@ const envelope = (k, c) => {
 };
 
 export const SCENES = {
-  // Cloudflare Email as a black box: Email Routing takes mail from any sender and delivers it to any mailbox
-  // provider or to an Email Worker; Email Sending takes mail from a Worker and delivers it to any provider
+  // the MTA, as a closed box with its ports: port 25 takes mail relayed from other servers, port 587 takes mail
+  // submitted by authenticated clients (Workers, apps). Both leave through one outbound port to any MX
   cloudflare(k) {
-    k.solid(1.2, 1.1, 1.0, 0x0b0c0e, 0.96);
-    const edge = k.box(1.2, 1.1, 1.0, CF, 0.9);
-    k.label("cloudflare email", [0, -0.78, 0], "small");
-    const node = (p, name, c = INK) => { const b = k.box(0.42, 0.42, 0.42, c, c === INK ? 0.6 : 0.85); b.position.set(...p); k.label(name, [p[0], p[1] - 0.36, p[2]], "small"); return { p, b, c }; };
-    const sender = node([-2.1, 0.7, 0], "any sender"), sendWorker = node([-2.1, -0.7, 0], "worker", USR);
-    const mxs = [node([2.1, 1.2, 0], "gmail.com"), node([2.1, 0.4, 0], "outlook.com"), node([2.1, -0.4, 0], "proton.me")];
-    const emailWorker = node([2.1, -1.2, 0], "email worker", CF);
-    k.label("email routing", [-1.15, 0.8, 0], "small");
-    k.label("email sending", [-1.15, -0.6, 0], "small usr");
+    const W = 1.1, H = 1.5, FX = W / 2;
+    k.solid(W, H, 1.0, 0x0b0c0e, 0.96);
+    const edge = k.box(W, H, 1.0, CF, 0.9);
+    k.label("mta", [0, H / 2 + 0.2, 0], "small");
+    const port = (x, y, name, cls) => {
+      // a socket sticking out of the side, so it reads from the front
+      const out = x < 0 ? -0.15 : 0.15, g = k.box(0.3, 0.26, 0.34, CF, 0.95);
+      g.position.set(x + out, y, 0);
+      k.label(name, [x + out, y + 0.27, 0], `small ${cls}`);
+      return { p: [x + out * 2, y, 0], g };
+    };
+    const P25 = port(-FX, 0.38, "25", ""), P587 = port(-FX, -0.38, "587", "usr"), OUT = port(FX, 0, "25", "");
+    const node = (p, c = INK) => { const b = k.box(0.32, 0.32, 0.32, c, c === INK ? 0.6 : 0.85); b.position.set(...p); return { p, b, c }; };
+    const relays = [node([-1.95, 1.05, 0]), node([-1.95, 0.5, 0])], subs = [node([-1.95, -0.5, 0], USR), node([-1.95, -1.05, 0], USR)];
+    k.label("relay", [-1.95, 1.42, 0], "small");
+    k.label("submission", [-1.95, -1.42, 0], "small usr");
+    const mxs = ["gmail.com", "outlook.com", "icloud.com", "proton.me"].map((n, i) => { const m = node([1.95, 1.05 - i * 0.7, 0]); k.label(n, [1.95, m.p[1] - 0.28, 0], "small"); return m; });
     const stat = k.label("", null, "corner2");
-    let routed = 0, sent = 0;
-    const count = () => stat.set(`routed ${String(routed).padStart(4, "0")} · sent ${String(sent).padStart(4, "0")}`);
+    let relayed = 0, submitted = 0;
+    const count = () => stat.set(`relayed ${String(relayed).padStart(4, "0")} · submitted ${String(submitted).padStart(4, "0")}`);
     count();
-    const fly = (env, a, b, h, dur, done) => k.tween(dur, (e) => env.position.set(...k.at(k.arc(a, b, h, 30), ease(e))), done);
-    // in at the left face, nothing to see inside, out at the right face
-    const pass = (from, to, color, done) => {
-      const env = envelope(k, color); env.scale.setScalar(0.5);
-      fly(env, from.p, [-0.6, from.p[1] * 0.3, 0], 0.15, 0.7, () => {
-        env.visible = false; flash(k, edge, ADD, CF, 0.25);
-        k.after(0.35, () => { env.visible = true; fly(env, [0.6, to.p[1] * 0.3, 0], to.p, 0.15, 0.7, () => { flash(k, to.b, ADD, to.c, 0.3); k.drop(env); done(); }); });
+    const fly = (env, pts, dur, done) => k.tween(dur, (e) => env.position.set(...k.at(pts, ease(e))), done);
+    let queued = 0;
+    const deliver = (env, color) => {
+      // the mail waits in the box for a moment, then leaves through the outbound port
+      k.after(0.4 + queued * 0.15, () => {
+        queued = Math.max(0, queued - 1);
+        const to = mxs[Math.floor(k.rnd() * mxs.length)];
+        flash(k, OUT.g, ADD, CF, 0.25);
+        env.visible = true;
+        fly(env, k.arc(OUT.p, to.p, 0.25, 30), 0.8, () => { flash(k, to.b, ADD, to.c, 0.3); k.drop(env); color === USR ? submitted++ : relayed++; count(); });
       });
     };
-    k.every(0.9, () => {
-      if (k.rnd() < 0.35) return pass(sendWorker, mxs[Math.floor(k.rnd() * 3)], USR, () => { sent++; count(); });
-      pass(sender, k.rnd() < 0.3 ? emailWorker : mxs[Math.floor(k.rnd() * 3)], INK, () => { routed++; count(); });
+    const arrive = (from, port, color) => {
+      const env = envelope(k, color); env.scale.setScalar(0.45);
+      fly(env, k.arc(from.p, port.p, 0.15, 30), 0.8, () => {
+        env.visible = false; queued++;
+        flash(k, port.g, ADD, CF, 0.25); flash(k, edge, color === USR ? USR : INK, CF, 0.15);
+        deliver(env, color);
+      });
+    };
+    k.every(0.75, () => {
+      if (k.rnd() < 0.45) arrive(subs[Math.floor(k.rnd() * 2)], P587, USR);
+      else arrive(relays[Math.floor(k.rnd() * 2)], P25, INK);
     });
-    k.orbit([0, 0, 0], 7.2, 0, 12, 8);
+    k.orbit([0, 0, 0], 6.6, 0, 12, 3);
   },
 
   // a distributed validator: four operators, each with a full node stack and Charon in its middle.
