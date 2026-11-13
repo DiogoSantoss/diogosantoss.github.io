@@ -367,101 +367,115 @@ export const SCENES = {
     k.orbit([0.3, 0.5, 0], 8, 8, 22, 10);
   },
 
-  // Mapp.it: a farmer looks at their land with a data layer above it (soil moisture). The cursor moves over
-  // the map; the cell under it shows its value and points down to the ground. A click opens the parcel
+  // Mapp.it: a map like Google Maps, with the farmer as a blue dot. The layers menu changes what the map shows:
+  // the base map, satellite, NDVI per parcel, or soil moisture. A cursor picks a layer, then reads a parcel
   spinworks(k) {
-    const W = 6, N = 24, Y = 1.05;
-    const hgt = (x, z) => 0.2 * Math.sin(x * 0.9 + 0.4) * Math.cos(z * 0.7) + 0.1 * Math.sin(x * 2.1 - z * 1.3);
-    const tp = [];
-    for (let i = 0; i <= N; i++) {
-      const a = -W / 2 + (i / N) * W;
-      for (let j = 0; j < N; j++) {
-        const b0 = -W / 2 + (j / N) * W, b1 = -W / 2 + ((j + 1) / N) * W;
-        tp.push([a, hgt(a, b0), b0], [a, hgt(a, b1), b1], [b0, hgt(b0, a), a], [b1, hgt(b1, a), a]);
+    const MW = 7.4, MH = 5.4, NX = 148, NZ = 108, GB = 0x4285f4;
+    const road = (x) => -0.25 + 0.15 * Math.sin(x * 0.8), road2 = (z) => 1.2 + 0.12 * Math.sin(z * 1.4), river = (z) => -2.45 + 0.3 * Math.sin(z * 1.3 + 0.5);
+    const village = (x, z) => x > 1.45 && x < 3.3 && z > -2.3 && z < -0.55;
+    const parcels = [];
+    for (const [x0, x1] of [[-1.95, -0.75], [-0.65, 0.3], [0.4, 1.0], [1.45, 2.4], [2.5, 3.3]]) {
+      for (const [z0, z1] of [[-2.3, -1.4], [-1.3, -0.6], [0.1, 1.1], [1.2, 2.3]]) {
+        if (village(x0 + 0.01, z0 + 0.01)) continue;
+        const j = () => (k.rnd() - 0.5) * 0.1, q = [[x0 + j(), z0 + j()], [x1 + j(), z0 + j()], [x1 + j(), z1 + j()], [x0 + j(), z1 + j()]];
+        const ha = Math.abs(q.reduce((s, [x, z], i) => { const [x2, z2] = q[(i + 1) % 4]; return s + x * z2 - x2 * z; }, 0)) / 2;
+        parcels.push({ q, ha, rows: k.rnd() < 0.5, vig: 0.2 + 0.7 * k.rnd(), wet: k.rnd(), crop: ["vineyard", "maize", "olive grove", "wheat"][Math.floor(k.rnd() * 4)], c: [(x0 + x1) / 2, (z0 + z1) / 2] });
       }
     }
-    k.segs(tp, INK, 0.1);
-    // parcels draped on the land, with their vine rows
-    const PARCELS = [[[-2.5, -2.3], [-0.4, -2.0], [-0.6, -0.3], [-2.6, -0.6]], [[0.2, -2.4], [2.5, -2.2], [2.3, 0.1], [0.0, -0.1]], [[-2.4, 0.3], [-0.2, 0.5], [-0.4, 2.5], [-2.5, 2.3]], [[0.4, 0.6], [2.6, 0.8], [2.4, 2.5], [0.3, 2.4]]];
-    const drape = (a, b, n = 20) => [...Array(n + 1).keys()].map((i) => { const x = a[0] + (b[0] - a[0]) * (i / n), z = a[1] + (b[1] - a[1]) * (i / n); return [x, hgt(x, z) + 0.01, z]; });
-    PARCELS.forEach((q) => {
-      k.line([0, 1, 2, 3, 0].map((i) => q[i]).flatMap((p, i, all) => (i ? drape(all[i - 1], p) : [])), INK, 0.5);
-      const rows = [];
-      for (let r = 1; r < 8; r++) { const t = r / 8, a = [q[0][0] + (q[3][0] - q[0][0]) * t, q[0][1] + (q[3][1] - q[0][1]) * t], b = [q[1][0] + (q[2][0] - q[1][0]) * t, q[1][1] + (q[2][1] - q[1][1]) * t]; const d = drape(a, b, 10); for (let i = 1; i < d.length; i++) rows.push(d[i - 1], d[i]); }
-      k.segs(rows, ADD, 0.22);
-    });
-    const inParcel = (x, z) => PARCELS.findIndex((q) => { let ins = false; for (let i = 0, j = 3; i < 4; j = i++) { const [xi, zi] = q[i], [xj, zj] = q[j]; if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins; } return ins; });
-    // the data layer: one colour per vertex, from dry (orange) to wet (blue); the wet patches drift
-    const plane = new THREE.PlaneGeometry(W, W, N, N); plane.rotateX(-Math.PI / 2); plane.translate(0, Y, 0);
-    const pos = plane.attributes.position;
-    plane.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(pos.count * 3), 3));
-    const col = plane.attributes.color.array;
-    k.scene.add(new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4, side: 2 /* DoubleSide */, depthWrite: false })));
-    const gl = [];
-    for (let i = 0; i <= N; i += 2) { const a = -W / 2 + (i / N) * W; gl.push([a, Y, -W / 2], [a, Y, W / 2], [-W / 2, Y, a], [W / 2, Y, a]); }
-    k.segs(gl, INK, 0.07);
-    k.segs([[-1, -1], [1, -1], [1, 1], [-1, 1]].flatMap(([sx, sz]) => [[(sx * W) / 2, hgt((sx * W) / 2, (sz * W) / 2), (sz * W) / 2], [(sx * W) / 2, Y, (sz * W) / 2]]), INK, 0.14);
-    const BLOBS = [[-1.5, -1.2, 1.1, 0.9], [1.4, -1.0, 0.9, -0.9], [0.4, 1.5, 1.2, 0.8], [-1.8, 1.6, 0.8, -0.7], [1.8, 1.8, 0.7, -0.6]];
-    const moist = (x, z, t) => {
-      let v = 0.5;
-      for (const [bx, bz, r, s] of BLOBS) { const cx = bx + 0.4 * Math.sin(t * 0.15 + bz), cz = bz + 0.3 * Math.cos(t * 0.12 + bx); v += 0.5 * s * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (r * r)); }
-      return Math.min(1, Math.max(0, v));
+    const inPoly = (q, x, z) => { let ins = false; for (let i = 0, j = 3; i < 4; j = i++) { const [xi, zi] = q[i], [xj, zj] = q[j]; if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins; } return ins; };
+    const noise = (x, z) => 0.5 + 0.3 * Math.sin(x * 6.1 + z * 3.7) * Math.sin(z * 5.3 - x * 2.9) + 0.15 * Math.sin(x * 11 + z * 9);
+    const ramp3 = (a, b, c, t) => (t < 0.5 ? a.map((v, i) => v + (b[i] - v) * t * 2) : b.map((v, i) => v + (c[i] - v) * (t - 0.5) * 2));
+    const clamp = (t) => Math.min(1, Math.max(0, t));
+    const LAYERS = ["map", "satellite", "ndvi", "soil moisture"];
+    const LEGEND = ["mapp.it · 39.25 N 8.58 W", "sentinel-2 · 10 m · 12 nov", "ndvi · red low → green high", "soil moisture · orange dry → blue wet"];
+    const colorAt = (layer, x, z) => {
+      const dr = Math.min(Math.abs(z - road(x)), Math.abs(x - road2(z))), water = Math.abs(x - river(z)) < 0.11;
+      const p = parcels.find((p) => inPoly(p.q, x, z)), n = noise(x, z);
+      if (layer === 1) {
+        if (water) return [0.08, 0.14, 0.16];
+        if (dr < 0.05) return [0.45, 0.43, 0.4];
+        if (village(x, z)) return [0.34 + 0.12 * n, 0.3 + 0.1 * n, 0.27];
+        if (p) { const r = 0.5 + 0.5 * Math.sin((p.rows ? x : z) * 15); return [0.27 + 0.1 * n - 0.1 * p.vig * r, 0.24 + 0.2 * p.vig * r + 0.05 * n, 0.14]; }
+        return [0.24 + 0.08 * n, 0.22 + 0.07 * n, 0.15];
+      }
+      if (water) return [0.14, 0.24, 0.36];
+      if (dr < 0.05) return [0.3, 0.31, 0.33];
+      if (village(x, z)) return [0.15, 0.15, 0.16];
+      if (!p) return [0.09, 0.1, 0.11];
+      if (layer === 2) return ramp3([0.85, 0.28, 0.22], [0.9, 0.8, 0.32], [0.3, 0.75, 0.38], clamp(p.vig + (n - 0.5) * 0.35));
+      if (layer === 3) return ramp3([0.92, 0.52, 0.2], [0.75, 0.72, 0.56], [0.28, 0.56, 0.95], clamp(p.wet + (noise(z, x) - 0.5) * 0.4));
+      return [0.12, 0.17, 0.13];
     };
-    const DRY = [0.95, 0.5, 0.18], MID = [0.85, 0.82, 0.5], WET = [0.3, 0.6, 1];
-    const ramp = (m) => (m < 0.5 ? DRY.map((c, i) => c + (MID[i] - c) * m * 2) : MID.map((c, i) => c + (WET[i] - c) * (m - 0.5) * 2));
-    // the cursor faces the camera and draws on top of everything
-    const cur = k.group(), C = 0.95;
-    const arrow = [[0, 0], [0, -0.3], [0.075, -0.235], [0.13, -0.35], [0.175, -0.33], [0.12, -0.215], [0.215, -0.215]];
-    const tri = [0, 1, 2, 0, 2, 5, 0, 5, 6, 2, 3, 4, 2, 4, 5].map((i) => [arrow[i][0] * C, arrow[i][1] * C, 0]);
-    const fill = new THREE.Mesh(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(tri.flat(), 3)), new THREE.MeshBasicMaterial({ color: 0x0b0c0e, transparent: true, opacity: 0.95, side: 2, depthTest: false, depthWrite: false }));
-    cur.add(fill);
-    const edge = k.loop(arrow.map(([x, y]) => [x * C, y * C, 0.001]), INK, 1, cur);
-    fill.renderOrder = 10; edge.renderOrder = 11; edge.material.depthTest = false;
-    const s = W / N, cell = k.loop([[-s / 2, 0, -s / 2], [s / 2, 0, -s / 2], [s / 2, 0, s / 2], [-s / 2, 0, s / 2]], INK, 0.95);
-    const foot = k.loop([[-s / 2, 0, -s / 2], [s / 2, 0, -s / 2], [s / 2, 0, s / 2], [-s / 2, 0, s / 2]], INK, 0.8);
-    const stem = k.segs([[0, 0, 0], [0, 1, 0]], INK, 0.5);
-    const tip = k.label("", [0, 0, 0], "right small"), pin = k.label("", [0, 0, 0], "usr small");
-    pin.on = false;
-    k.label("mapp.it · layer: soil moisture", null, "corner");
-    const where = k.label("", null, "corner2");
-    const at = { x: 0, z: 0 };
+    // the map itself: one colour per vertex for each layer; a layer switch blends between them
+    const geo = new THREE.PlaneGeometry(MW, MH, NX, NZ); geo.rotateX(-Math.PI / 2);
+    const P = geo.attributes.position;
+    const cols = LAYERS.map((_, l) => { const a = new Float32Array(P.count * 3); for (let i = 0; i < P.count; i++) a.set(colorAt(l, P.getX(i), P.getZ(i)).map((v) => v ** 2.2), i * 3); return a; });
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(cols[0], 3));
+    const C = geo.attributes.color.array;
+    k.scene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true })));
+    let layer = 0;
+    const setLayer = (i) => { const from = C.slice(), to = cols[i]; layer = i; k.tween(0.6, (e) => { for (let j = 0; j < C.length; j++) C[j] = from[j] + (to[j] - from[j]) * e; geo.attributes.color.needsUpdate = true; }); };
+    // roads, river banks, parcel edges and houses drawn over it
+    const Y = 0.01, X0 = -MW / 2, X1 = MW / 2, Z0 = -MH / 2, Z1 = MH / 2, along = (f, a, b, n = 60) => [...Array(n + 1).keys()].map((i) => a + ((b - a) * i) / n).map(f);
+    for (const d of [-0.05, 0.05]) {
+      k.line(along((x) => [x, Y, road(x) + d], X0, X1), INK, 0.45);
+      k.line(along((z) => [road2(z) + d, Y, z], Z0, Z1), INK, 0.45);
+      k.line(along((z) => [river(z) + d * 2.2, Y, z], Z0, Z1), REQ, 0.35);
+    }
+    for (const p of parcels) k.loop(p.q.map(([x, z]) => [x, Y, z]), INK, 0.2);
+    for (let i = 0; i < 16; i++) { const w = 0.12 + k.rnd() * 0.14, d = 0.1 + k.rnd() * 0.12; k.box(w, 0.04, d, INK, 0.3).position.set(1.6 + k.rnd() * 1.55, 0.02, -2.15 + k.rnd() * 1.4); }
+    k.label("N118", [-1.3, 0, road(-1.3) - 0.16], "small");
+    k.label("Alpiarça", [2.4, 0, -1.45], "small");
+    k.label("rio Tejo", [river(1.7) + 0.42, 0, 1.7], "small");
+    // the farmer: blue dot, accuracy circle and heading cone, walking along the road and down the track
+    const you = k.group();
+    const flat = (g, c, o, y) => { const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = y; you.add(m); return m; };
+    const acc = flat(new THREE.CircleGeometry(0.38, 40), GB, 0.16, 0.02);
+    flat(new THREE.CircleGeometry(0.46, 16, Math.PI / 2 - 0.45, 0.9), GB, 0.3, 0.025);
+    flat(new THREE.CircleGeometry(0.1, 24), 0xffffff, 1, 0.03);
+    flat(new THREE.CircleGeometry(0.075, 24), GB, 1, 0.035);
+    const walk = k.path([...along((x) => [x, 0, road(x) + 0.12], -1.7, road2(road(1.0)) - 0.12, 30), ...along((z) => [road2(z) - 0.12, 0, z], road(1.0) + 0.12, 1.9, 20)], 300);
     k.frame((dt, now) => {
-      for (let i = 0; i < pos.count; i++) col.set(ramp(moist(pos.getX(i), pos.getZ(i), now)), i * 3);
-      plane.attributes.color.needsUpdate = true;
-      cur.position.set(at.x, Y + 0.02, at.z);
-      cur.quaternion.copy(k.camera.quaternion);
-      const cx = Math.min(W / 2 - s / 2, Math.max(-W / 2 + s / 2, (Math.floor(at.x / s + N / 2) - N / 2 + 0.5) * s));
-      const cz = Math.min(W / 2 - s / 2, Math.max(-W / 2 + s / 2, (Math.floor(at.z / s + N / 2) - N / 2 + 0.5) * s));
-      const h = hgt(cx, cz) + 0.02, m = moist(cx, cz, now);
-      cell.position.set(cx, Y + 0.005, cz); foot.position.set(cx, h, cz);
-      stem.position.set(cx, h, cz); stem.scale.y = Y - h;
-      tip.pos.set(at.x + 0.28, Y, at.z);
-      tip.set(`${Math.round(m * 100)}% · ${m < 0.35 ? "dry" : m > 0.65 ? "wet" : "ok"}`);
-      where.set(`zoom 17 · ${(38.7412 - at.z * 0.0009).toFixed(4)} N  ${(9.1395 - at.x * 0.0011).toFixed(4)} W`);
-      // the map follows the cursor a little, like a hand panning
-      k.target.x += (at.x * 0.35 - k.target.x) * Math.min(1, dt * 1.5);
-      k.target.z += (at.z * 0.35 + 0.1 - k.target.z) * Math.min(1, dt * 1.5);
+      const u = (now * 0.035) % 2, e = u < 1 ? u : 2 - u, i = Math.min(walk.length - 2, Math.floor(e * (walk.length - 1)));
+      const p = k.at(walk, e), dir = u < 1 ? 1 : -1, dx = (walk[i + 1][0] - walk[i][0]) * dir, dz = (walk[i + 1][2] - walk[i][2]) * dir;
+      you.position.set(p[0], 0, p[2]);
+      you.rotation.y += (((Math.atan2(-dx, -dz) - you.rotation.y + 3 * Math.PI) % TAU) - Math.PI) * Math.min(1, dt * 5);
+      acc.scale.setScalar(1 + 0.12 * Math.sin(now * 2.4));
     });
-    let stops = 0;
-    const move = () => {
-      const from = { ...at }, to = { x: (k.rnd() - 0.5) * 4.8, z: (k.rnd() - 0.5) * 4.8 };
-      const bend = [(k.rnd() - 0.5) * 1.6, (k.rnd() - 0.5) * 1.6];
-      k.tween(1.3, (e) => {
-        const u = ease(e), b = Math.sin(Math.PI * u);
-        at.x = from.x + (to.x - from.x) * u + bend[0] * b * 0.5; at.z = from.z + (to.z - from.z) * u + bend[1] * b * 0.5;
-      }, () => {
-        if (++stops % 3) return;
-        // a click: a ring on the layer, and the parcel's summary on the ground
-        const ring = k.loop(k.circle(0.1, 32), USR, 0.95); ring.position.set(at.x, Y + 0.01, at.z);
-        k.tween(0.6, (e) => { ring.scale.setScalar(1 + e * 2.5); ring.material.opacity = 0.95 * (1 - e); }, () => k.drop(ring));
-        const p = inParcel(at.x, at.z), m = moist(at.x, at.z, k.now);
-        pin.pos.set(at.x, hgt(at.x, at.z) - 0.25, at.z); pin.on = true;
-        pin.set(p < 0 ? `no parcel here` : `parcel ${p + 1} · ${Math.round(m * 100)}% · ${m < 0.35 ? "irrigate" : m > 0.65 ? "skip watering" : "fine"}`);
-        k.after(2.2, () => (pin.on = false));
-      });
+    // the layers menu and the cursor are HTML on top of the view, like the real app's controls
+    const panel = k.label("", null, "layers");
+    const items = LAYERS.map((n) => { const d = document.createElement("div"); d.textContent = n; panel.el.append(d); return d; });
+    const mark = (i) => items.forEach((d, j) => d.classList.toggle("on", i === j));
+    mark(0);
+    const legend = k.label(LEGEND[0], null, "corner2");
+    const cur = k.label("", null, "cur");
+    cur.el.innerHTML = '<svg width="13" height="19" viewBox="0 0 13 19"><path d="M1 1v15l3.6-3.4 2.4 5.4 2.6-1.1-2.4-5.3H12z" fill="#0b0c0e" stroke="#e9ebee" stroke-width="1.2" stroke-linejoin="round"/></svg><div class="tip"></div>';
+    const tip = cur.el.querySelector(".tip"), v3 = new THREE.Vector3();
+    const box = () => cur.el.parentElement.getBoundingClientRect();
+    const onMap = (p) => () => { v3.set(p[0], 0, p[1]).project(k.camera); const r = box(); return [((v3.x + 1) / 2) * r.width, ((1 - v3.y) / 2) * r.height]; };
+    const onItem = (i) => () => { const r = box(), b = items[i].getBoundingClientRect(); return [b.left - r.left + 18, b.top - r.top + b.height / 2]; };
+    const at = [90, 120];
+    let follow = null;
+    const moveTo = (fn, dur, done) => {
+      const from = [...at]; follow = null;
+      k.tween(dur, (e) => { const t = fn(), u = ease(e); at[0] = from[0] + (t[0] - from[0]) * u; at[1] = from[1] + (t[1] - from[1]) * u; }, () => { follow = fn; done?.(); });
     };
-    k.every(2.4, move, 0.3);
-    k.orbit([0, 0.4, 0.1], 10.4, 18, 36, 10, 0.06);
+    const click = () => { cur.el.classList.add("click"); k.after(0.15, () => cur.el.classList.remove("click")); };
+    k.frame(() => { if (follow) [at[0], at[1]] = follow(); cur.el.style.left = `${at[0]}px`; cur.el.style.top = `${at[1]}px`; });
+    const info = (l, p) => [`${p.crop} · ${(p.ha * 10).toFixed(1)} ha`, `${p.crop} · cloud-free`, `ndvi ${(0.2 + 0.7 * p.vig).toFixed(2)} · ${p.vig < 0.4 ? "weak" : p.vig > 0.7 ? "strong" : "normal"}`, `${Math.round(12 + 30 * p.wet)}% · ${p.wet < 0.35 ? "dry, irrigate" : p.wet > 0.65 ? "wet" : "ok"}`][l];
+    k.every(6.5, () => {
+      const next = (layer + 1) % LAYERS.length;
+      tip.textContent = "";
+      moveTo(onItem(next), 1.0, () => {
+        click(); mark(next); setLayer(next); legend.set(LEGEND[next]);
+        k.after(0.8, () => {
+          if (next === 0) return moveTo(() => onMap([you.position.x, you.position.z])(), 1.1, () => (tip.textContent = "you · ±5 m"));
+          const p = parcels[Math.floor(k.rnd() * parcels.length)];
+          moveTo(onMap(p.c), 1.1, () => (tip.textContent = info(next, p)));
+        });
+      });
+    }, 1);
+    k.orbit([0.15, 0, 0.1], 7.6, 0, 60, 4, 0.08);
   },
 
   // consistent hashing: servers own arcs of the ring; a new server takes only its share of keys

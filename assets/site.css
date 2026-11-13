@@ -90,11 +90,12 @@ li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
 .chip.spin { border-color: rgba(255, 108, 2, 0.55); background: rgba(20, 54, 101, 0.35); }
 
 /* work: a gallery of cards, each with a live 3D scene drawn by one shared renderer (#works) */
-#works { z-index: 3; pointer-events: none; }
+#works { z-index: 1; pointer-events: none; }
 .gallery { left: 10vw; right: 10vw; width: auto; top: 84px; transform: none; padding: 0 0 24px; max-height: calc(100vh - 84px - 116px); max-height: calc(100dvh - 84px - 116px); }
 .gallery > h2:first-child { margin-top: 14px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
-.card { display: block; color: inherit; border: 1px solid rgba(233, 235, 238, 0.08); border-radius: 8px; background: rgba(11, 12, 14, 0.86); overflow: hidden; }
+.card { display: block; color: inherit; border: 1px solid rgba(233, 235, 238, 0.08); border-radius: 8px; overflow: hidden; }
+.cap { background: rgba(11, 12, 14, 0.86); }
 a.card:hover, a.card:focus-visible { border-color: rgba(108, 182, 255, 0.45); color: inherit; }
 a.card:hover .what { color: var(--req); }
 .view { position: relative; aspect-ratio: 4 / 3; border-bottom: 1px solid rgba(233, 235, 238, 0.06); cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
@@ -109,6 +110,15 @@ a.card:hover .what { color: var(--req); }
 .view-labels .code { font-size: 15px; color: var(--ink); letter-spacing: 0.06em; }
 .view-labels .small { font-size: 9.5px; }
 .view-labels .log { white-space: pre; line-height: 1.5; }
+.view-labels .layers { left: auto; right: 10px; top: 10px; translate: none; transform: none !important; display: flex; flex-direction: column; gap: 1px; padding: 4px; background: rgba(11, 12, 14, 0.88); border: 1px solid rgba(233, 235, 238, 0.14); border-radius: 6px; font-size: 9.5px; }
+.view-labels .layers div { position: relative; padding: 2px 8px 2px 17px; border-radius: 3px; }
+.view-labels .layers div.on { color: var(--ink); background: rgba(66, 133, 244, 0.28); }
+.view-labels .layers div.on::before { content: "✓"; position: absolute; left: 5px; }
+.view-labels .cur { translate: none; transform: none !important; z-index: 1; }
+.view-labels .cur svg { display: block; transform-origin: 1px 1px; transition: scale 0.12s; }
+.view-labels .cur.click svg { scale: 0.8; }
+.view-labels .cur .tip { position: absolute; left: 15px; top: 17px; white-space: nowrap; color: var(--ink); background: rgba(11, 12, 14, 0.88); border: 1px solid rgba(233, 235, 238, 0.14); border-radius: 4px; padding: 2px 6px; font-size: 9.5px; }
+.view-labels .cur .tip:empty { display: none; }
 .cap { padding: 12px 14px 14px; display: grid; gap: 4px; }
 .cap .when { color: var(--dim); font-size: 11.5px; }
 .cap .what { color: var(--mid); }

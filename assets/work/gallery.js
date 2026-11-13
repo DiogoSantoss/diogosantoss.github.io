@@ -3,7 +3,7 @@
 // card's rectangle (viewport + scissor), clipped to the scrolling list. Off-screen cards are paused.
 // Returns { stop }; app.js calls it when the visitor leaves the page.
 import * as THREE from "../vendor/three.js?v=0187";
-import { SCENES, makeKit } from "./scenes.js?v=20261124";
+import { SCENES, makeKit } from "./scenes.js?v=20261125";
 
 export function startGallery({ canvas, root }) {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -60,7 +60,10 @@ export function startGallery({ canvas, root }) {
       renderer.setSize(W, H); // also sets the CSS size: a canvas does not stretch to inset: 0 by itself
     }
     renderer.setScissor(0, 0, W, H);
+    renderer.setClearColor(0x000000, 0);
     renderer.clear();
+    // the canvas sits under the cards, so each view paints the card background itself
+    renderer.setClearColor(0x0b0c0e, 0.86);
     const clip = root.getBoundingClientRect();
     for (const { el, k } of views) {
       const r = el.getBoundingClientRect();
