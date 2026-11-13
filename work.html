@@ -22,7 +22,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@l_Didas_l" />
     <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/site.css?v=20261125" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261126" />
   </head>
   <body data-page="work">
     <canvas id="bg" aria-hidden="true"></canvas>
@@ -77,7 +77,7 @@
         </a>
         <a class="card" href="https://github.com/DiogoSantoss/fault-tolerant-bank" draggable="false">
           <div class="view" data-scene="paxos"></div>
-          <div class="cap"><span class="when">paxos</span><span class="what">fault-tolerant bank on multi-paxos ↗</span><p>Each time slot, Paxos among the Boney servers elects the primary bank server. The primary replicates each deposit and withdrawal in two phases, tentative then commit, to a majority of the bank servers.</p></div>
+          <div class="cap"><span class="when">paxos</span><span class="what">fault-tolerant bank on multi-paxos ↗</span><p>Each time slot, Paxos among the Boney servers elects the primary bank server. The primary replicates each deposit and withdrawal to the other bank servers with two-phase commit (2PC): tentative, then commit.</p></div>
         </a>
         <a class="card" href="https://github.com/DiogoSantoss/nvolopi" draggable="false">
           <div class="view" data-scene="gke"></div>
@@ -85,11 +85,11 @@
         </a>
         <a class="card" href="https://github.com/DiogoSantoss/cloud-computing-virtualization" draggable="false">
           <div class="view" data-scene="aws"></div>
-          <div class="cap"><span class="when">aws</span><span class="what">instrumenting Java apps on AWS ↗</span><p>Javassist counts the instructions each request runs. From those counts the load balancer estimates the cost of a new request and sends it to the worker with the least work. Under load, the autoscaler starts more workers.</p></div>
+          <div class="cap"><span class="when">aws</span><span class="what">load balancer and autoscaler on AWS ↗</span><p>Three Java services on AWS (EC2 and Lambda). We built the layer around them: Javassist instrumentation that counts the instructions of each request, a load balancer that uses those counts to estimate the cost of a new request and send it to the least-loaded worker, and an autoscaler that starts and stops workers.</p></div>
         </a>
         <a class="card" href="https://github.com/DiogoSantoss/2fa-stock-broker" draggable="false">
           <div class="view" data-scene="2fa"></div>
-          <div class="cap"><span class="when">2fa</span><span class="what">secure broker with JWT and 2FA ↗</span><p>Two locks to log in: a password and a TOTP code. Then the broker signs a JWT that lasts 10 minutes, every trade carries it, and a refresh cookie gets a new one when it expires.</p></div>
+          <div class="cap"><span class="when">2fa</span><span class="what">secure broker with JWT and 2FA ↗</span><p>Two locks to log in: a password, then the code from the authenticator app. The broker then signs a JWT that the browser keeps for 10 minutes and sends with every trade. A refresh cookie gets a new JWT when it expires.</p></div>
         </a>
       </div>
     </main>
@@ -128,6 +128,6 @@
       </div>
     </aside>
     <footer class="webring" id="webring" aria-label="webring"></footer>
-    <script type="module" src="/assets/app.js?v=20261125"></script>
+    <script type="module" src="/assets/app.js?v=20261126"></script>
   </body>
 </html>

@@ -133,71 +133,36 @@ const envelope = (k, c) => {
 };
 
 export const SCENES = {
-  // Cloudflare's MTA: a sending server speaks SMTP to the edge; the mail is authenticated (SPF, DKIM, DMARC),
-  // matched to a routing rule, queued and relayed to the destination MX. Email Sending joins the same queue
+  // Cloudflare Email as a black box: Email Routing takes mail from any sender and delivers it to any mailbox
+  // provider or to an Email Worker; Email Sending takes mail from a Worker and delivers it to any provider
   cloudflare(k) {
-    const S = [-2.9, 0, 0], G = [2.9, 0, 0], A = [-0.8, 0, 1.9];
-    k.box(0.55, 0.55, 0.55, INK, 0.6).position.set(...S); k.label("mx.sender.net", [S[0], -0.55, 0], "small");
-    k.box(0.55, 0.55, 0.55, INK, 0.6).position.set(...G); k.label("gmail mx", [G[0], -0.55, 0], "small");
-    k.box(0.5, 0.34, 0.34, USR, 0.8).position.set(...A); k.label("worker · send_email", [A[0], -0.36, A[2]], "small");
-    k.box(3.5, 1.1, 1.3, CF, 0.3).position.set(0, 0.05, 0); k.label("cloudflare mta", [0, 0.82, 0], "small");
-    const ST = [["smtp", -1.2], ["auth", -0.4], ["rules", 0.4], ["queue", 1.2]].map(([n, x]) => {
-      const b = k.box(0.46, 0.4, 0.46, CF, 0.85); b.position.set(x, 0, 0); k.label(n, [x, -0.4, 0], "small");
-      return { n, b, p: [x, 0, 0] };
-    });
-    k.segs(ST.slice(1).flatMap((s, i) => [[ST[i].p[0] + 0.23, 0, 0], [s.p[0] - 0.23, 0, 0]]), CF, 0.4);
-    const log = k.label("", null, "corner log"), stat = k.label("", null, "corner2"), lines = [];
-    const say = (s) => { lines.push(s); if (lines.length > 4) lines.shift(); log.set(lines.join("\n")); };
-    const talk = (steps, done) => {
-      const run = (i) => {
-        if (i === steps.length) return done();
-        const [c, s] = steps[i];
-        say("> " + c);
-        k.comet(k.arc(S, ST[0].p, 0.35, 24), { color: REQ, dur: 0.32, len: 0.5, r: 0.025, arrive: () => {
-          say("< " + s);
-          k.comet(k.arc(ST[0].p, S, -0.25, 24), { color: s[0] === "5" ? DEL : INK, dur: 0.28, len: 0.5, r: 0.02, arrive: () => k.after(0.1, () => run(i + 1)) });
-        } });
-      };
-      run(0);
-    };
-    // the envelope visits each stage; a stage can do something on arrival
-    const through = (env, stages, done) => {
-      let i = 0;
-      const step = () => {
-        if (i === stages.length) return done();
-        const a = env.position.toArray(), [st, on] = stages[i++];
-        k.tween(0.35, (e) => env.position.set(...lerp3(a, [st.p[0], 0.36, 0], ease(e))), () => { flash(k, st.b, ADD, CF, 0.3); on?.(); k.after(0.25, step); });
-      };
-      step();
-    };
-    const out = (env, done) => k.tween(1.0, (e) => env.position.set(...k.at(k.arc([ST[3].p[0], 0.36, 0], [G[0], 0.36, 0], 0.9), ease(e))), () => { k.drop(env); done(); });
-    let n = 0, c = 0, id = 0x4f2a;
-    const inbound = () => {
-      const bad = c % 4 === 3, to = bad ? "nobody@diogoms.com" : "me@diogoms.com";
-      talk([["EHLO mx.sender.net", "250 mx.cloudflare.net"], ["MAIL FROM:<alice@sender.net>", "250 ok"], [`RCPT TO:<${to}>`, bad ? "550 5.1.1 no such user" : "250 ok"]], () => {
-        if (bad) return talk([["QUIT", "221 bye"]], () => stat.set("rejected · no routing rule for nobody@"));
-        talk([["DATA", "354 go ahead"]], () => {
-          const env = envelope(k, INK); env.scale.setScalar(0.6); env.position.set(S[0], 0.36, 0);
-          k.tween(0.5, (e) => env.position.set(...k.at(k.arc([S[0], 0.36, 0], [ST[0].p[0], 0.36, 0], 0.5), ease(e))), () => through(env, [
-            [ST[0]],
-            [ST[1], () => stat.set("spf pass · dkim pass · dmarc pass")],
-            [ST[2], () => stat.set("rule: me@diogoms.com → forward to gmail")],
-            [ST[3], () => { id += 0x9d; say(`< 250 2.0.0 queued as ${id.toString(16)}`); k.comet(k.arc(ST[0].p, S, -0.25, 24), { color: ADD, dur: 0.3, r: 0.022 }); }],
-          ], () => out(env, () => stat.set(`relayed to gmail mx · 250 ok · ${String(++n).padStart(4, "0")} delivered`))));
-        });
+    k.solid(1.2, 1.1, 1.0, 0x0b0c0e, 0.96);
+    const edge = k.box(1.2, 1.1, 1.0, CF, 0.9);
+    k.label("cloudflare email", [0, -0.78, 0], "small");
+    const node = (p, name, c = INK) => { const b = k.box(0.42, 0.42, 0.42, c, c === INK ? 0.6 : 0.85); b.position.set(...p); k.label(name, [p[0], p[1] - 0.36, p[2]], "small"); return { p, b, c }; };
+    const sender = node([-2.1, 0.7, 0], "any sender"), sendWorker = node([-2.1, -0.7, 0], "worker", USR);
+    const mxs = [node([2.1, 1.2, 0], "gmail.com"), node([2.1, 0.4, 0], "outlook.com"), node([2.1, -0.4, 0], "proton.me")];
+    const emailWorker = node([2.1, -1.2, 0], "email worker", CF);
+    k.label("email routing", [-1.15, 0.8, 0], "small");
+    k.label("email sending", [-1.15, -0.6, 0], "small usr");
+    const stat = k.label("", null, "corner2");
+    let routed = 0, sent = 0;
+    const count = () => stat.set(`routed ${String(routed).padStart(4, "0")} · sent ${String(sent).padStart(4, "0")}`);
+    count();
+    const fly = (env, a, b, h, dur, done) => k.tween(dur, (e) => env.position.set(...k.at(k.arc(a, b, h, 30), ease(e))), done);
+    // in at the left face, nothing to see inside, out at the right face
+    const pass = (from, to, color, done) => {
+      const env = envelope(k, color); env.scale.setScalar(0.5);
+      fly(env, from.p, [-0.6, from.p[1] * 0.3, 0], 0.15, 0.7, () => {
+        env.visible = false; flash(k, edge, ADD, CF, 0.25);
+        k.after(0.35, () => { env.visible = true; fly(env, [0.6, to.p[1] * 0.3, 0], to.p, 0.15, 0.7, () => { flash(k, to.b, ADD, to.c, 0.3); k.drop(env); done(); }); });
       });
     };
-    const sending = () => {
-      lines.length = 0;
-      say("POST send_email {from: me@diogoms.com}");
-      const env = envelope(k, USR); env.scale.setScalar(0.6); env.position.set(A[0], 0.2, A[2]);
-      k.tween(0.6, (e) => env.position.set(...lerp3([A[0], 0.2, A[2]], [ST[1].p[0], 0.36, 0], ease(e))), () => through(env, [
-        [ST[1], () => stat.set("dkim signed · d=diogoms.com")],
-        [ST[3], () => say("queued · email sending")],
-      ], () => out(env, () => stat.set(`sent to gmail mx · 250 ok · ${String(++n).padStart(4, "0")} delivered`))));
-    };
-    k.every(7, () => (c++ % 3 === 2 ? sending() : inbound()));
-    k.orbit([0, 0.2, 0.4], 8.4, 0, 22, 8);
+    k.every(0.9, () => {
+      if (k.rnd() < 0.35) return pass(sendWorker, mxs[Math.floor(k.rnd() * 3)], USR, () => { sent++; count(); });
+      pass(sender, k.rnd() < 0.3 ? emailWorker : mxs[Math.floor(k.rnd() * 3)], INK, () => { routed++; count(); });
+    });
+    k.orbit([0, 0, 0], 7.2, 0, 12, 8);
   },
 
   // a distributed validator: four operators, each with a full node stack and Charon in its middle.
@@ -218,20 +183,17 @@ export const SCENES = {
     const front = ops.reduce((b, o) => (o.z + o.x * 0.3 > b.z + b.x * 0.3 ? o : b));
     for (const [name, y] of LAYERS) k.label(name, [front.x + 0.5, y, front.z], "right small");
     k.segs(ops.flatMap((a, i) => ops.slice(i + 1).flatMap((b) => [a.at("charon"), b.at("charon")])), OBOL, 0.12);
-    const stage = k.label("", null, "corner");
     let slot = 8_120_400;
     k.every(5.2, () => {
       slot += 1;
       const down = k.rnd() < 0.45 ? Math.floor(k.rnd() * N) : -1;
       ops.forEach((o, i) => Object.values(o.boxes).forEach((b) => (b.material.opacity = i === down ? 0.12 : b.material.color.getHex() === OBOL ? 0.95 : 0.5)));
       const live = ops.filter((_, i) => i !== down);
-      stage.set(`slot ${slot} · attestation duty${down >= 0 ? ` · operator ${down + 1} offline` : ""}`);
       for (const o of live) k.comet(k.path([o.at("beacon node"), o.at("charon")], 10), { color: INK, dur: 0.35, len: 0.6, r: 0.025 });
-      k.after(0.5, () => { stage.set("charons agree on the data (qbft)"); for (const a of live) for (const b of live) if (a !== b) k.comet(k.arc(a.at("charon"), b.at("charon"), 0.3, 24), { color: OBOL, dur: 0.5, len: 0.5, r: 0.028 }); });
-      k.after(1.5, () => { stage.set("each validator client signs with its share"); for (const o of live) k.comet(k.path([o.at("charon"), o.at("validator client")], 10), { color: INK, dur: 0.3, len: 0.6, r: 0.025, arrive: () => { flash(k, o.share, ADD, USR, 0.4); k.comet(k.path([o.at("validator client"), o.at("charon")], 10), { color: USR, dur: 0.3, len: 0.6, r: 0.03 }); } }); });
-      k.after(2.6, () => { stage.set("partial signatures exchanged · 3 of 4 needed"); for (const a of live) for (const b of live) if (a !== b) k.comet(k.arc(a.at("charon"), b.at("charon"), 0.45, 24), { color: USR, dur: 0.5, len: 0.5, r: 0.028 }); });
+      k.after(0.5, () => { for (const a of live) for (const b of live) if (a !== b) k.comet(k.arc(a.at("charon"), b.at("charon"), 0.3, 24), { color: OBOL, dur: 0.5, len: 0.5, r: 0.028 }); });
+      k.after(1.5, () => { for (const o of live) k.comet(k.path([o.at("charon"), o.at("validator client")], 10), { color: INK, dur: 0.3, len: 0.6, r: 0.025, arrive: () => { flash(k, o.share, ADD, USR, 0.4); k.comet(k.path([o.at("validator client"), o.at("charon")], 10), { color: USR, dur: 0.3, len: 0.6, r: 0.03 }); } }); });
+      k.after(2.6, () => { for (const a of live) for (const b of live) if (a !== b) k.comet(k.arc(a.at("charon"), b.at("charon"), 0.45, 24), { color: USR, dur: 0.5, len: 0.5, r: 0.028 }); });
       k.after(3.5, () => {
-        stage.set("aggregated · each charon broadcasts to its own beacon node");
         for (const o of live) { flash(k, o.boxes.charon, ADD, OBOL, 0.6); k.comet(k.path([o.at("charon"), o.at("beacon node")], 10), { color: ADD, dur: 0.4, len: 0.6, r: 0.032, arrive: () => flash(k, o.boxes["beacon node"], ADD, INK, 0.5) }); }
       });
     }, 0.2);
@@ -245,7 +207,6 @@ export const SCENES = {
     k.label("log", [-2.6, -0.05, 1.9]);
     const ptr = k.loop(k.circle(0.55, 48), USR, 0.9); ptr.position.y = -0.06;
     const aba = k.label("", [0, 2.4, 0], "usr");
-    const stage = k.label("", null, "corner");
     let crashed = -1, r = 0;
     const stack = (i) => queues[i].forEach((m, j) => k.tween(0.3, (e) => (m.position.y = m.position.y + (0.36 + j * 0.42 - m.position.y) * e)));
     const push = (i) => {
@@ -264,7 +225,6 @@ export const SCENES = {
       const from = ptr.position.x;
       k.tween(0.45, (e) => (ptr.position.x = from + (xs[i] - from) * ease(e)));
       aba.pos.set(xs[i], 2.3, 0);
-      stage.set(`agreement on queue ${i + 1}`);
       let flips = 0;
       k.tween(0.8, () => { if (++flips % 4 === 0) aba.set(`ABA ${k.rnd() < 0.5 ? 0 : 1}`); }, () => {
         const yes = queues[i].length > 0;
@@ -298,9 +258,9 @@ export const SCENES = {
     grid(0, INK, 0.3);
     ["mon", "tue", "wed", "thu", "fri"].forEach((d, i) => k.label(d, [ox + i * c, 0, oz + Hh * c + 0.05], "small"));
     ["9h", "11h", "13h", "15h"].forEach((h, i) => k.label(h, [ox - c - 0.12, 0, oz + i * 2 * c], "small"));
-    const JURY = [["advisor", REQ, 0.75], ["president", VIO, 1.25], ["examiner", ADD, 1.75]];
+    const JURY = [["advisor", REQ, 0.75], ["president", VIO, 1.25], ["jury", ADD, 1.75]];
     JURY.forEach(([name, color, y]) => { grid(y, color, 0.12); k.label(name, [ox + D * c + 0.1, y, oz], "right small"); });
-    const stage = k.label("", null, "corner"), booked = k.label("", [0, 0, 0], "usr");
+    const booked = k.label("", [0, 0, 0], "usr");
     let tiles = [], n = 0;
     const defence = () => {
       tiles.forEach((t) => k.drop(t)); tiles = [];
@@ -308,20 +268,17 @@ export const SCENES = {
       // a slot everyone is free for, plus some free hours of their own
       const meet = [Math.floor(k.rnd() * D), Math.floor(k.rnd() * Hh)];
       const marks = JURY.map(() => { const m = new Set([meet.join()]); while (m.size < 9) m.add(`${Math.floor(k.rnd() * D)},${Math.floor(k.rnd() * Hh)}`); return [...m].sort(() => k.rnd() - 0.5); });
-      stage.set(`defence ${++n} · jury marks free hours`);
       JURY.forEach(([, color, y], j) => marks[j].forEach((m, i) => k.after(j * 0.9 + i * 0.09, () => {
         const [d, h] = m.split(",").map(Number), t = k.solid(c * 0.8, 0.02, c * 0.8, color, 0.0);
         t.position.set(...cell(d, h, y)); tiles.push(t); fade(k, t, 0, 0.55, 0.2);
       })));
       k.after(3.1, () => {
-        stage.set("overlap found · booking");
         const p = cell(meet[0], meet[1], 0);
         for (const [, , y] of JURY) k.comet(k.path([[p[0], y, p[2]], [p[0], 0.02, p[2]]], 12), { color: USR, dur: 0.45, len: 0.6, r: 0.03 });
         k.after(0.5, () => {
           const b = k.box(c * 0.86, 0.32, c * 0.86, USR, 0.95); b.position.set(p[0], 0.16, p[2]); tiles.push(b);
           booked.pos.set(p[0], 0.55, p[2]); booked.on = true;
           booked.set(`${["mon", "tue", "wed", "thu", "fri"][meet[0]]} ${9 + meet[1]}:00 · room ${["0.19", "1.38", "EA2"][n % 3]}`);
-          stage.set(`defence ${n} booked · emails sent to the jury`);
         });
       });
     };
@@ -486,7 +443,7 @@ export const SCENES = {
     const vnodes = colors.map((c, s) => [...Array(VN)].map(() => ({ s, a: k.rnd() * TAU })));
     const ticks = vnodes.map((vs, s) => { const g = k.group(); for (const v of vs) { k.segs([[Math.cos(v.a) * (R - 0.02), 0, Math.sin(v.a) * (R - 0.02)], [Math.cos(v.a) * (R + 0.28), 0, Math.sin(v.a) * (R + 0.28)]], colors[s], 0.95, g); const d = k.dot(0.05, colors[s], g); d.position.set(Math.cos(v.a) * (R + 0.3), 0, Math.sin(v.a) * (R + 0.3)); } return g; });
     const keys = [...Array(40)].map(() => { const a = k.rnd() * TAU, d = k.dot(0.035, INK); d.position.set(Math.cos(a) * (R - 0.35), 0, Math.sin(a) * (R - 0.35)); return { a, d, owner: -1, link: null }; });
-    const stat = k.label("", null, "corner");
+    const stat = k.label("", null, "corner2");
     let live = [0, 1, 2], tree = null;
     const owner = (a) => {
       const all = live.flatMap((s) => vnodes[s]).sort((x, y) => x.a - y.a);
@@ -543,15 +500,15 @@ export const SCENES = {
       k.segs([[-0.26, 0.17, 0.011], [0, -0.02, 0.011], [0, -0.02, 0.011], [0.26, 0.17, 0.011]], c, 0.95, g);
       return g;
     };
-    const tag = k.label("", [0, 0, 0]), stage = k.label("", null, "corner");
+    const tag = k.label("", [0, 0, 0]);
     const fly = (g, pts, dur, done) => k.tween(dur, (e) => { const p = k.at(pts, ease(e)); g.position.set(...p); tag.pos.set(p[0], p[1] + 0.4, p[2]); }, done);
     const cycle = () => {
       const a = env(INK);
-      tag.el.className = ""; tag.set("to: me@diogoms.com"); stage.set("inbound · email routing");
+      tag.el.className = ""; tag.set("to: me@diogoms.com"); 
       fly(a, k.arc(S, C, 1.1), 1.1, () => { tag.set("forward → gmail"); fly(a, k.arc(C, G, 1.1), 1.1, () => { k.after(0.5, () => k.drop(a)); tag.set("in your inbox"); }); });
       k.after(3.2, () => {
         const b = env(USR);
-        tag.el.className = "usr"; tag.set("send as me@diogoms.com"); stage.set("reply · email sending api");
+        tag.el.className = "usr"; tag.set("send as me@diogoms.com"); 
         fly(b, k.arc(G, C, -1.1), 1.1, () => { tag.set("from: me@diogoms.com"); fly(b, k.arc(C, S, -1.1), 1.1, () => { tag.set("same thread ✓"); k.after(0.6, () => k.drop(b)); }); });
       });
     };
@@ -572,17 +529,16 @@ export const SCENES = {
     const client = [-2.7, 0.2, 0];
     k.box(0.36, 0.36, 0.36, REQ, 0.8).position.set(...client); k.label("client", [client[0], -0.25, 0], "small");
     const lead = k.loop(k.circle(0.45, 40), USR, 0.95); lead.position.set(nodes[0].p[0], -0.12, nodes[0].p[2]);
-    const stage = k.label("", null, "corner"), pool = [];
+    const pool = [];
     let leader = 0, round = 0, height = 0, fee = 100, failed = false;
     const all = (color) => { for (const a of nodes) for (const b of nodes) if (a !== b && !a.dead && !b.dead) k.comet(k.arc(a.p, b.p, 0.35, 24), { color, dur: 0.5, len: 0.5, r: 0.028 }); };
     const instance = () => {
       const L = nodes[leader];
-      stage.set(`height ${height} · round ${round} · leader node ${leader + 1} · PRE-PREPARE`);
       for (const b of nodes) if (b !== L) k.comet(k.arc(L.p, b.p, 0.5, 24), { color: USR, dur: 0.5, len: 0.5, r: 0.034 });
-      k.after(0.7, () => { stage.set(`height ${height} · PREPARE · quorum 3`); all(REQ); });
-      k.after(1.4, () => { stage.set(`height ${height} · COMMIT · quorum 3`); all(ADD); });
+      k.after(0.7, () => { all(REQ); });
+      k.after(1.4, () => { all(ADD); });
       k.after(2.1, () => {
-        fee += 3; stage.set(`block ${++height} · 3 transfers · fees → node ${leader + 1}`);
+        fee += 3; 
         pool.splice(0).forEach((m) => k.drop(m));
         for (const n of nodes) {
           if (n.dead) continue;
@@ -596,13 +552,11 @@ export const SCENES = {
     };
     const changeRound = () => {
       const L = nodes[leader]; L.dead = true; L.b.material.color.setHex(DEL);
-      stage.set(`node ${leader + 1} (leader) failed · timers expire · ROUND-CHANGE`);
       k.after(0.6, () => all(VIO));
       k.after(1.4, () => {
         round++; leader = (leader + 1) % N;
         const from = lead.position.clone(), to = nodes[leader].p;
         k.tween(0.4, (e) => lead.position.set(from.x + (to[0] - from.x) * e, -0.12, from.z + (to[2] - from.z) * e));
-        stage.set(`round ${round} · node ${leader + 1} leads`);
       });
       k.after(9, () => { L.dead = false; L.b.material.color.setHex(INK); });
     };
@@ -629,24 +583,23 @@ export const SCENES = {
     const clients = row(-2.9, 2, 1.2, "clients"), bank = row(-0.9, 3, 1.0, "bank servers"), boney = row(1.9, 5, 0.66, "boney · paxos");
     boney.forEach((b, i) => { b.p[0] += Math.sin((i / 4) * Math.PI) * 0.6; b.b.position.set(...b.p); });
     bank.forEach((b, i) => k.label(`b${6 + i}`, [b.p[0], 0.38, b.p[2]], "small"));
+    k.label("2pc", [bank[0].p[0] + 0.45, 0, bank[0].p[2]], "right small usr");
     const ring = k.loop(k.circle(0.34, 40), USR, 0.95); ring.position.y = -0.2;
-    const stage = k.label("", null, "corner"), bal = k.label("", null, "corner2");
+    const bal = k.label("", null, "corner2");
     let slot = 0, primary = 0, balance = 0, seq = 0, suspect = -1;
     const elect = () => {
       slot++;
       const cand = suspect === primary ? (primary + 1) % 3 : primary;
-      stage.set(`slot ${slot}/12 · CompareAndSwap(slot ${slot}, b${6 + cand})`);
       for (const b of bank) for (const x of boney) k.comet(k.arc(b.p, x.p, 0.4, 24), { color: VIO, dur: 0.45, len: 0.5, r: 0.022 });
       const L = boney[0];
-      k.after(0.6, () => { stage.set(`slot ${slot} · paxos: prepare → promise`); for (const x of boney.slice(1)) k.comet(k.arc(L.p, x.p, 0.3, 20), { color: VIO, dur: 0.35, len: 0.5, r: 0.022, arrive: () => k.comet(k.arc(x.p, L.p, -0.25, 20), { color: INK, dur: 0.3, len: 0.5, r: 0.02 }) }); });
-      k.after(1.4, () => { stage.set(`slot ${slot} · accept → decide (3 of 5)`); for (const x of boney.slice(1)) k.comet(k.arc(L.p, x.p, 0.3, 20), { color: ADD, dur: 0.35, len: 0.5, r: 0.022 }); });
+      k.after(0.6, () => { for (const x of boney.slice(1)) k.comet(k.arc(L.p, x.p, 0.3, 20), { color: VIO, dur: 0.35, len: 0.5, r: 0.022, arrive: () => k.comet(k.arc(x.p, L.p, -0.25, 20), { color: INK, dur: 0.3, len: 0.5, r: 0.02 }) }); });
+      k.after(1.4, () => { for (const x of boney.slice(1)) k.comet(k.arc(L.p, x.p, 0.3, 20), { color: ADD, dur: 0.35, len: 0.5, r: 0.022 }); });
       k.after(2.0, () => {
         for (const x of boney) k.comet(k.arc(x.p, bank[cand].p, -0.4, 24), { color: ADD, dur: 0.4, len: 0.5, r: 0.022 });
         const changed = cand !== primary; primary = cand;
         bank.forEach((b, i) => b.b.material.color.setHex(i === suspect ? DEL : INK));
         const from = ring.position.clone(), to = bank[primary].p;
         k.tween(0.35, (e) => ring.position.set(from.x + (to[0] - from.x) * e, -0.2, from.z + (to[2] - from.z) * e));
-        stage.set(`slot ${slot} · primary b${6 + primary}${changed ? " · cleanup: ListPendingRequests" : ""}`);
         if (suspect >= 0 && changed) k.after(4, () => { bank[suspect].b.material.color.setHex(INK); suspect = -1; });
       });
     };
@@ -656,13 +609,11 @@ export const SCENES = {
       for (const b of bank) k.comet(k.arc(c.p, b.p, 0.45, 24), { color: REQ, dur: 0.4, len: 0.5, r: 0.024 });
       k.after(0.45, () => {
         const n = ++seq;
-        stage.set(`b${6 + primary} · phase 1 · tentative #${n} ${op.join(" ")}`);
         const backups = bank.filter((_, i) => i !== primary);
         for (const b of backups) k.comet(k.arc(P.p, b.p, 0.3, 20), { color: USR, dur: 0.35, len: 0.5, r: 0.022, arrive: () => k.comet(k.arc(b.p, P.p, -0.25, 20), { color: INK, dur: 0.3, len: 0.5, r: 0.02 }) });
         k.after(0.75, () => {
           const ok = op[0] === "D" || balance >= op[1];
           if (ok) balance += op[0] === "D" ? op[1] : -op[1];
-          stage.set(`b${6 + primary} · phase 2 · commit #${n} ${op.join(" ")}${ok ? "" : " · refused, balance too low"}`);
           for (const b of backups) k.comet(k.arc(P.p, b.p, 0.3, 20), { color: ok ? ADD : DEL, dur: 0.35, len: 0.5, r: 0.022 });
           k.comet(k.arc(P.p, c.p, -0.35, 24), { color: ok ? ADD : DEL, dur: 0.4, r: 0.024 });
           bal.set(`balance ${balance} €`);
@@ -699,42 +650,37 @@ export const SCENES = {
     k.label("mongodb", [db[0], -0.2, 0], "small");
     const users = { alice: [-2.9, 0.3, -0.9], bob: [-2.9, 0.3, 0.6], carol: [-2.9, 0.3, 1.5] };
     for (const [n, p] of Object.entries(users)) { k.box(0.3, 0.3, 0.3, INK, 0.6).position.set(...p); k.label(n, [p[0], p[1] + 0.34, p[2]], "small"); }
-    const stage = k.label("", null, "corner"), tag = k.label("", [0, 0, 0], "small");
+    const tag = k.label("", [0, 0, 0], "small");
     const P = (s) => [s.x, 0.3, s.z];
     const hop = (pts, color, done, r = 0.026) => { const seg = (i) => i === pts.length - 1 ? done?.() : k.comet(k.arc(pts[i], pts[i + 1], 0.25, 20), { color, dur: 0.32, len: 0.5, r, arrive: () => seg(i + 1) }); seg(0); };
     const file = () => { const g = k.group(); k.segs([[-0.09, -0.12, 0], [0.04, -0.12, 0], [0.04, -0.12, 0], [0.09, -0.07, 0], [0.09, -0.07, 0], [0.09, 0.12, 0], [0.09, 0.12, 0], [-0.09, 0.12, 0], [-0.09, 0.12, 0], [-0.09, -0.12, 0]].map(([x, y, z]) => [x * 1.4, y * 1.4, z]), USR, 0.95, g); return g; };
     let id = 0;
     const story = () => {
       const fid = (0x3f2a + ++id * 4099).toString(16).slice(-4) + "…";
-      stage.set("alice: POST /api/auth/auth"); tag.on = false;
+      tag.on = false;
       hop([users.alice, lb, P(front), P(auth)], REQ, () => {
-        stage.set("auth: bcrypt ✓ · JWT (RS256, 30 min)");
         hop([P(auth), P(front), lb, users.alice], ADD, () => {
-          stage.set("alice: upload 4 MB · allowed: bob · Bearer JWT");
           const f = file(); f.position.set(...users.alice);
           const path = [users.alice, lb, P(front), P(up), db];
           let i = 0;
-          const step = () => { if (i === path.length - 1) { k.drop(f); stage.set(`stored · fileID ${fid}`); return share(); } const a = path[i], b = path[++i]; k.tween(0.35, (e) => f.position.set(...lerp3(a, b, e)), step); };
+          const step = () => { if (i === path.length - 1) { k.drop(f); return share(); } const a = path[i], b = path[++i]; k.tween(0.35, (e) => f.position.set(...lerp3(a, b, e)), step); };
           step();
         });
       });
       const share = () => {
         tag.on = true; tag.pos.set(-2.2, 0.3, -0.15); tag.set(`id ${fid}`);
         k.comet(k.path([users.alice, users.bob], 12), { color: USR, dur: 0.5, r: 0.03, arrive: () => {
-          stage.set("bob: POST /download · allowed ✓");
           hop([users.bob, lb, P(front), P(up), db], REQ, () => hop([db, P(up), P(front), lb, users.bob], ADD, () => {
-            stage.set("carol: POST /download · 403 not allowed");
             hop([users.carol, lb, P(front), P(up)], REQ, () => k.comet(k.arc(P(up), users.carol, 0.4, 24), { color: DEL, dur: 0.45, r: 0.03 }));
           }));
         } });
       };
     };
     const stress = () => {
-      stage.set("hiroshima.py: 500 uploads · hpa 50% cpu");
       for (let i = 0; i < 24; i++) k.after(i * 0.12, () => hop([users[["alice", "bob", "carol"][i % 3]], lb, P(up)], USR, null, 0.02));
       k.after(1.2, () => up.pods.length < 3 && up.add());
       k.after(2.0, () => up.pods.length < 3 && up.add());
-      k.after(6.5, () => { up.drop(); k.after(1, () => up.drop()); stage.set("load over · upload back to 1 pod"); });
+      k.after(6.5, () => { up.drop(); k.after(1, () => up.drop()); });
     };
     let n = 0;
     k.every(8, () => (n++ % 3 === 2 ? stress() : story()));
@@ -747,8 +693,9 @@ export const SCENES = {
     const SRC = [-3.0, 0.3, 0], LB = [-1.5, 0.3, 0], XS = [0.0, 0.85, 1.7, 2.55], CAP = 2.0, RATE = 0.1;
     k.label("requests", [SRC[0], -0.1, 0], "small");
     const lbBox = k.box(0.5, 0.5, 0.5, USR, 0.9); lbBox.position.set(...LB);
-    k.label("load balancer", [LB[0], -0.2, 0], "small");
-    const est = k.label("", [LB[0], 0.85, 0], "usr small"), stage = k.label("", null, "corner"), stat = k.label("", null, "corner2");
+    k.label("load balancer", [LB[0], -0.2, 0], "small usr"); k.label("+ autoscaler", [LB[0], -0.42, 0], "small usr");
+    k.label("javassist-instrumented workers", [1.25, 2.35, 0], "small");
+    const est = k.label("", [LB[0], 0.85, 0], "usr small"), stat = k.label("", null, "corner2");
     const KINDS = [["/simulate", REQ, () => `gen ${200 + Math.floor(k.rnd() * 1800)}`], ["/insectwar", VIO, () => `max ${20 + Math.floor(k.rnd() * 200)}`], ["/compress", ADD, () => `${(0.3 + k.rnd() * 3).toFixed(1)} MP`]];
     const workers = [];
     const spawn = () => {
@@ -784,8 +731,7 @@ export const SCENES = {
       k.comet(k.path([SRC, LB], 12), { color: INK, dur: 0.35, len: 0.5, r: 0.025, arrive: () => {
         est.set(`≈ ${cost.toFixed(1)}G`);
         const w = [...workers].sort((a, b) => a.load() - b.load())[0];
-        if (w.load() + h > CAP) { stage.set(`${path} ${arg()} · all workers full · 503`); return k.comet(k.arc(LB, SRC, -0.3, 20), { color: DEL, dur: 0.35, r: 0.025 }); }
-        stage.set(`${path} ${arg()} · ≈ ${cost.toFixed(1)}G instr → worker ${XS.indexOf(w.x) + 1}`);
+        if (w.load() + h > CAP) { return k.comet(k.arc(LB, SRC, -0.3, 20), { color: DEL, dur: 0.35, r: 0.025 }); }
         flash(k, lbBox, ADD, USR, 0.2);
         w.pending += h;
         const b = { g: block(h, color), h, cost };
@@ -797,19 +743,19 @@ export const SCENES = {
     });
     k.every(2.5, () => {
       const avg = workers.reduce((s, w) => s + w.load(), 0) / workers.length / CAP;
-      if (avg > 0.6 && workers.length < XS.length) { spawn(); stage.set(`autoscaler · average ${Math.round(avg * 100)}% · start a worker`); return; }
+      if (avg > 0.6 && workers.length < XS.length) { spawn(); return; }
       const idle = workers.find((w) => !w.blocks.length && !w.pending);
-      if (avg < 0.08 && workers.length > 1 && idle) { retire(idle); stage.set(`autoscaler · average ${Math.round(avg * 100)}% · stop a worker`); }
+      if (avg < 0.08 && workers.length > 1 && idle) { retire(idle); }
     }, 1);
     k.orbit([0.4, 0.8, 0], 8.2, 10, 18, 10);
   },
 
-  // the broker: two locks, a password and a TOTP code; behind them the server signs a JWT that lasts 10 minutes.
-  // Every trade carries the JWT, and when it expires the refresh cookie gets a new one
+  // the broker: two locks, a password and a TOTP code from the authenticator app; then the broker signs a JWT
+  // that the browser keeps for 10 minutes. Every trade from the browser carries it; a refresh cookie renews it
   "2fa"(k) {
-    const C = [-2.4, 0.2, 0], S = [1.5, 0.2, 0], PH = [-2.4, 1.5, 0], TK = [-0.8, 1.25, 0];
+    const PH = [-2.7, 0.2, 0], C = [-1.4, 0.2, 0], S = [1.3, 0.2, 0], TK = [-1.4, 0.85, 0];
+    const phone = k.box(0.22, 0.4, 0.04, INK, 0.7); phone.position.set(...PH); k.label("authenticator", [PH[0], PH[1] - 0.5, 0], "small");
     k.box(0.6, 0.45, 0.45, INK, 0.6).position.set(...C); k.label("browser", [C[0], -0.2, 0], "small");
-    k.box(0.22, 0.4, 0.04, INK, 0.7).position.set(...PH); k.label("authenticator", [PH[0], PH[1] - 0.5, 0], "small");
     k.box(1.4, 1.3, 0.8, INK, 0.6).position.set(...S); k.label("broker", [S[0], -0.65, 0.4], "small");
     const lock = (x, name) => {
       const g = k.group(); g.position.set(x, S[1] + 0.32, 0.41);
@@ -823,46 +769,48 @@ export const SCENES = {
     const prices = [...Array(14)].map((_, i) => 0.5 + 0.2 * Math.sin(i * 0.9));
     const chart = k.line(prices.map((p, i) => [S[0] - 0.55 + i * 0.085, S[1] - 0.5 + p * 0.35, 0.41]), REQ, 0.8);
     const tick = (up) => { prices.shift(); prices.push(Math.min(1, Math.max(0, prices.at(-1) + (up ? 0.12 : -0.1) * (0.5 + k.rnd())))); prices.forEach((p, i) => chart.geometry.attributes.position.setY(i, S[1] - 0.5 + p * 0.35)); chart.geometry.attributes.position.needsUpdate = true; };
+    // the app shows a new 6-digit code every period; the dial runs down until the next one
     const dial = k.line([...Array(41).keys()].map((i) => { const a = Math.PI / 2 - (i / 40) * TAU; return [PH[0] + Math.cos(a) * 0.36, PH[1] + Math.sin(a) * 0.36, 0]; }), USR, 0.9);
     const code = k.label("", [PH[0], PH[1] + 0.58, 0], "code");
     const newCode = () => code.set(String(Math.floor(k.rnd() * 1e6)).padStart(6, "0").replace(/(\d{3})/, "$1 "));
     newCode(); k.every(6, newCode, 6);
-    // the JWT: a card above the browser, with a ring that runs down over its lifetime
-    const card = k.box(0.5, 0.3, 0.02, ADD, 0.95); card.position.set(...TK); card.visible = false;
-    const ring = k.line([...Array(41).keys()].map((i) => { const a = Math.PI / 2 - (i / 40) * TAU; return [TK[0] + Math.cos(a) * 0.36, TK[1] + Math.sin(a) * 0.36, 0]; }), ADD, 0.9);
+    // the JWT the browser holds: a card on top of it, with a ring that runs down over its lifetime
+    const card = k.box(0.42, 0.26, 0.02, ADD, 0.95); card.position.set(...TK); card.visible = false;
+    const ring = k.line([...Array(41).keys()].map((i) => { const a = Math.PI / 2 - (i / 40) * TAU; return [TK[0] + Math.cos(a) * 0.3, TK[1] + Math.sin(a) * 0.3, 0]; }), ADD, 0.9);
     ring.visible = false;
-    const tok = k.label("", [TK[0] + 0.48, TK[1], 0], "right small add"), stage = k.label("", null, "corner");
-    const go = (a, b, color, done, h = 0.45) => k.comet(k.arc(a, b, h, 24), { color, dur: 0.5, len: 0.5, r: 0.032, arrive: done });
-    let state = "out", left = 0, refreshes = 0, trades = 0;
+    const tok = k.label("", [TK[0] + 0.4, TK[1], 0], "right small add");
+    // a message: a comet with the name of what it carries riding above it
+    const msg = k.label("", [0, 0, 0], "small"); msg.on = false;
+    const send = (a, b, text, color, cls, done, h = 0.45) => {
+      const pts = k.arc(a, b, h, 24);
+      msg.set(text); msg.el.className = `small ${cls}`; msg.on = true;
+      k.tween(0.6, (e) => { const p = k.at(pts, e); msg.pos.set(p[0], p[1] + 0.22, p[2]); });
+      k.comet(pts, { color, dur: 0.6, len: 0.5, r: 0.032, arrive: () => { msg.on = false; done?.(); } });
+    };
+    let state = "out", left = 0, refreshes = 0;
     const setTok = (on, color = ADD) => { card.visible = ring.visible = on; tok.on = on; card.material.color.setHex(color); ring.material.color.setHex(color); };
     const issue = () => { left = 1; state = "in"; setTok(true); tok.set("jwt · 10 min"); };
     const login = () => {
       state = "busy"; setTok(false); L1.open(false); L2.open(false);
-      stage.set("1 · password");
-      go(C, S, REQ, () => {
+      send(C, S, "password", REQ, "", () => {
         L1.open(true);
-        stage.set(`2 · code ${code.el.textContent} from the app`);
-        k.comet(k.path([PH, C], 10), { color: USR, dur: 0.4, r: 0.03, arrive: () => go(C, S, USR, () => {
-          L2.open(true);
-          stage.set("3 · both locks open · the broker signs a jwt");
-          go(S, TK, ADD, issue, -0.5);
-        }) });
+        // the user reads the code off the app and types it in the browser
+        flash(k, phone, USR, INK, 0.8); code.el.classList.add("usr");
+        k.after(0.5, () => send(PH, C, code.el.textContent, USR, "usr", () => {
+          code.el.classList.remove("usr");
+          send(C, S, code.el.textContent, USR, "usr", () => { L2.open(true); send(S, C, "jwt", ADD, "add", issue, -0.5); });
+        }, 0.3));
       });
     };
     const trade = () => {
       const buy = k.rnd() < 0.6, n = 1 + Math.floor(k.rnd() * 9);
-      stage.set(`4 · ${buy ? "buy" : "sell"} ${n} NCMB · carries the jwt`);
       flash(k, card, INK, ADD, 0.25);
-      go(TK, S, REQ, () => { tick(buy); trades++; k.comet(k.arc(S, C, -0.35, 24), { color: ADD, dur: 0.45, r: 0.026 }); }, 0.35);
+      send(C, S, `jwt · ${buy ? "buy" : "sell"} ${n}`, ADD, "add", () => { tick(buy); k.comet(k.arc(S, C, -0.35, 24), { color: INK, dur: 0.45, r: 0.024 }); }, 0.35);
     };
     const expire = () => {
       state = "busy"; setTok(true, DEL); tok.set("expired");
-      if (refreshes++ % 2) {
-        stage.set(`session over · ${trades} trades · log in again`);
-        return k.after(2, () => { trades = 0; login(); });
-      }
-      stage.set("5 · jwt expired · the refresh cookie asks for a new one");
-      go(C, S, INK, () => go(S, TK, ADD, () => { issue(); stage.set("5 · new jwt · no password needed"); }, -0.5));
+      if (refreshes++ % 2) return k.after(2, login);
+      send(C, S, "refresh cookie", INK, "", () => send(S, C, "new jwt", ADD, "add", issue, -0.5));
     };
     k.frame((dt, now) => {
       dial.geometry.setDrawRange(0, Math.max(2, Math.round((1 - (now % 6) / 6) * 40) + 1));
@@ -870,6 +818,6 @@ export const SCENES = {
     });
     k.every(1.6, () => state === "in" && left > 0.15 && trade(), 0.8);
     k.after(0.3, login);
-    k.orbit([-0.4, 0.6, 0], 7.6, 8, 14, 12);
+    k.orbit([-0.55, 0.45, 0], 7.8, 4, 14, 6);
   },
 };
