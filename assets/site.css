@@ -83,8 +83,7 @@ li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
 }
 .badges .track { display: flex; gap: 6px; width: max-content; animation: drift 150s linear infinite; }
-.badges a { display: block; line-height: 0; opacity: 0.85; transition: opacity 0.2s, transform 0.2s; }
-.badges a:hover, .badges a:focus-visible { opacity: 1; transform: translateY(-2px); }
+.badges a { display: block; line-height: 0; }
 .badges img { width: 88px; height: 31px; }
 @keyframes drift { to { transform: translateX(calc(-50% - 3px)); } }
 

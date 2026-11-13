@@ -11,7 +11,7 @@
 // - Keepalives tick quietly along every session.
 // It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
 // Elements passed in `masks` keep the mesh out from under them entirely (the gear sketch on phones).
-import { startAscii } from "./grid.js?v=20261116";
+import { startAscii } from "./grid.js?v=20261117";
 
 const BG = "#0b0c0e";
 const INK = (a) => `rgba(233,235,238,${a})`;
