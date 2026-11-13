@@ -503,32 +503,92 @@ export const SCENES = {
     k.orbit([0, -0.35, 0], 7.4, 0, 34, 12);
   },
 
-  // Gmail alias: mail comes in through Email Routing, the reply goes out through the Email Sending API
+  // Gmail Alias Sender: mail to me@diogoms.com reaches Gmail through Email Routing. The extension adds an
+  // orange button to the reply; its Rust core builds the reply and sends it through the Email Sending API,
+  // from the alias and in the same thread, and a copy comes back to Gmail
   mail(k) {
-    const S = [-2.5, 0, 0], C = [0, 0, 0], G = [2.5, 0, 0];
-    k.box(0.6, 0.6, 0.6, INK, 0.6).position.set(...S); k.label("sender", [S[0], -0.6, 0]);
-    k.box(0.75, 0.75, 0.75, CF, 0.9).position.set(...C); k.label("cloudflare email", [0, -0.68, 0]);
-    k.box(0.6, 0.6, 0.6, INK, 0.6).position.set(...G); k.label("gmail", [G[0], -0.6, 0]);
-    const env = (c) => {
-      const g = k.group();
-      k.box(0.52, 0.34, 0.02, c, 0.95, g);
-      k.segs([[-0.26, 0.17, 0.011], [0, -0.02, 0.011], [0, -0.02, 0.011], [0.26, 0.17, 0.011]], c, 0.95, g);
-      return g;
+    const rect = (x0, y0, x1, y1, c, o, z = 0) => k.loop([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], c, o);
+    // the browser window: tab bar, address, inbox list on the left, a reply on the right
+    rect(-1.65, -1.2, 1.65, 1.2, INK, 0.55);
+    k.segs([[-1.65, 0.95, 0], [1.65, 0.95, 0]], INK, 0.3);
+    k.label("mail.google.com", [-0.8, 1.07, 0], "small");
+    const rows = [...Array(6)].map((_, i) => { const y = 0.72 - i * 0.26; return k.segs([[-1.5, y, 0.01], [-0.35, y, 0.01]], INK, 0.25); });
+    const unread = k.dot(0.04, ADD, null, 0.95); unread.position.set(-1.56, 0.72, 0.02); unread.visible = false;
+    // the extension: its toolbar icon and the small part that does the work
+    const icon = k.box(0.14, 0.14, 0.02, USR, 0.95); icon.position.set(1.45, 1.07, 0);
+    const ext = k.box(1.1, 0.44, 0.04, USR, 0.85); ext.position.set(0.95, 0.55, 0);
+    k.segs([[1.45, 1.0, 0], [1.45, 0.8, 0]], USR, 0.4);
+    k.label("extension", [0.95, 0.63, 0.03], "small usr");
+    k.label("rust core", [0.95, 0.46, 0.03], "small");
+    // the reply, with Gmail's send button and the extension's orange one
+    const compose = k.group(); compose.visible = false;
+    const frame = rect(-0.2, -1.1, 1.55, 0.0, INK, 0.6, 0.01); compose.add(frame);
+    const lines = [0.75, 1.3, 0.95].map((w, i) => { const l = k.segs([[0, 0, 0], [1, 0, 0]], INK, 0.5, compose); l.position.set(-0.05, -0.2 - i * 0.15, 0.02); l.scale.x = 0.001; return { l, w }; });
+    const gsend = k.box(0.34, 0.15, 0.02, REQ, 0.7, compose); gsend.position.set(0.05, -0.95, 0.02);
+    const orange = k.box(0.95, 0.15, 0.02, USR, 0.95, compose); orange.position.set(0.97, -0.95, 0.02); orange.visible = false;
+    const btn = k.label("send as me@diogoms.com", [0.97, -0.72, 0.03], "small usr"); btn.on = false;
+    const toast = k.label("sent as me@diogoms.com", [0, -1.36, 0.03], "small"); toast.on = false;
+    // outside the browser: the other person, and Cloudflare
+    const ALICE = [-2.35, 0.2, 0], CF_ = [2.35, 0.2, 0];
+    k.box(0.4, 0.4, 0.4, INK, 0.6).position.set(...ALICE); k.label("alice", [ALICE[0], -0.15, 0], "small");
+    k.box(0.5, 0.5, 0.5, CF, 0.9).position.set(...CF_); k.label("cloudflare", [CF_[0], -0.2, 0], "small");
+    // an envelope with a note riding above it
+    const note = k.label("", [0, 0, 0], "small"); note.on = false;
+    const carry = (env, pts, dur, text, cls, done) => {
+      note.set(text); note.el.className = `small ${cls}`; note.on = !!text;
+      k.tween(dur, (e) => { const p = k.at(pts, ease(e)); env.position.set(...p); note.pos.set(p[0], p[1] + 0.24, p[2]); }, () => { note.on = false; done?.(); });
     };
-    const tag = k.label("", [0, 0, 0]);
-    const fly = (g, pts, dur, done) => k.tween(dur, (e) => { const p = k.at(pts, ease(e)); g.position.set(...p); tag.pos.set(p[0], p[1] + 0.4, p[2]); }, done);
+    const env = (c) => { const g = envelope(k, c); g.scale.setScalar(0.42); return g; };
+    // the visitor's cursor, an HTML arrow placed over a point of the scene
+    const cur = k.label("", null, "cur");
+    cur.el.innerHTML = '<svg width="13" height="19" viewBox="0 0 13 19"><path d="M1 1v15l3.6-3.4 2.4 5.4 2.6-1.1-2.4-5.3H12z" fill="#0b0c0e" stroke="#e9ebee" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+    const v3 = new THREE.Vector3(), aim = [-0.6, -0.5, 0], from = [...aim], to = [...aim];
+    let t0 = -1, dur = 1;
+    k.frame(() => {
+      const e = t0 < 0 ? 1 : Math.min(1, (k.now - t0) / dur), u = ease(e);
+      v3.set(...from.map((v, i) => v + (to[i] - v) * u)).project(k.camera);
+      const r = cur.el.parentElement.getBoundingClientRect();
+      cur.el.style.left = `${((v3.x + 1) / 2) * r.width}px`; cur.el.style.top = `${((1 - v3.y) / 2) * r.height}px`;
+    });
+    const point = (p, d = 0.7) => { const e = t0 < 0 ? 1 : Math.min(1, (k.now - t0) / dur); for (let i = 0; i < 3; i++) from[i] += (to[i] - from[i]) * ease(e); to.splice(0, 3, ...p); t0 = k.now; dur = d; };
+    const click = () => { cur.el.classList.add("click"); k.after(0.15, () => cur.el.classList.remove("click")); };
     const cycle = () => {
-      const a = env(INK);
-      tag.el.className = ""; tag.set("to: me@diogoms.com"); 
-      fly(a, k.arc(S, C, 1.1), 1.1, () => { tag.set("forward → gmail"); fly(a, k.arc(C, G, 1.1), 1.1, () => { k.after(0.5, () => k.drop(a)); tag.set("in your inbox"); }); });
-      k.after(3.2, () => {
-        const b = env(USR);
-        tag.el.className = "usr"; tag.set("send as me@diogoms.com"); 
-        fly(b, k.arc(G, C, -1.1), 1.1, () => { tag.set("from: me@diogoms.com"); fly(b, k.arc(C, S, -1.1), 1.1, () => { tag.set("same thread ✓"); k.after(0.6, () => k.drop(b)); }); });
-      });
+      compose.visible = false; orange.visible = false; btn.on = false; toast.on = false;
+      lines.forEach((x) => (x.l.scale.x = 0.001));
+      // 1. alice writes to the alias; Email Routing forwards it into Gmail
+      const a = env(INK); a.position.set(...ALICE);
+      carry(a, k.arc(ALICE, CF_, 1.5, 40), 1.1, "to: me@diogoms.com", "", () => carry(a, k.arc(CF_, [-0.9, 0.72, 0.03], 0.4, 30), 0.8, "email routing", "", () => {
+        k.drop(a); unread.visible = true; flash(k, rows[0], ADD, INK, 0.6);
+        // 2. open it and reply; the extension puts its button in the reply
+        point([-0.9, 0.72, 0]);
+        k.after(0.8, () => {
+          click(); unread.visible = false; compose.visible = true;
+          lines.forEach((x, i) => k.after(0.2 + i * 0.35, () => k.tween(0.35, (e) => (x.l.scale.x = Math.max(0.001, x.w * e)))));
+          k.comet(k.path([[0.95, 0.33, 0.03], [0.97, -0.87, 0.03]], 20), { color: USR, dur: 0.5, r: 0.03, arrive: () => { orange.visible = true; btn.on = true; } });
+          point([0.6, -0.55, 0]);
+          // 3. click it: the page hands the draft to the extension
+          k.after(1.6, () => {
+            point([1.25, -0.97, 0], 0.5);
+            k.after(0.6, () => {
+              click(); flash(k, orange, ADD, USR, 0.3);
+              const d = env(USR); d.position.set(0.97, -0.95, 0.05);
+              carry(d, k.path([[0.97, -0.95, 0.05], [0.95, 0.55, 0.05]], 20), 0.6, "draft", "usr", () => {
+                flash(k, ext, ADD, USR, 0.6);
+                note.set("from the alias · same thread"); note.el.className = "small usr"; note.on = true; note.pos.set(0.95, 0.85, 0);
+                // 4. the core sends it through the Email Sending API; Cloudflare delivers it, and a copy comes back
+                k.after(0.9, () => carry(d, k.path([[0.95, 0.55, 0.05], CF_], 20), 0.6, "POST /send · api token", "usr", () => {
+                  carry(d, k.arc(CF_, ALICE, 1.5, 40), 1.1, "from: me@diogoms.com", "usr", () => { k.drop(d); compose.visible = false; btn.on = false; toast.on = true; });
+                  const c = env(INK); c.position.set(...CF_);
+                  k.tween(0.9, (e) => c.position.set(...k.at(k.arc(CF_, [-0.9, 0.46, 0.03], -0.3, 30), ease(e))), () => { k.drop(c); flash(k, rows[1], ADD, INK, 0.6); });
+                }));
+              });
+            });
+          });
+        });
+      }));
     };
-    k.every(7, cycle);
-    k.orbit([0, 0.1, 0], 7.4, 0, 16, 16);
+    k.every(11, cycle);
+    k.orbit([0, 0.05, 0], 7.2, 0, 6, 2);
   },
 
   // HDSLedger: clients send transfers; the leader fills a block of three and runs QBFT (pre-prepare,
