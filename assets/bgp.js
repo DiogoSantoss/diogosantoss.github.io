@@ -11,7 +11,7 @@
 // - Keepalives tick quietly along every session.
 // It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
 // Elements passed in `masks` keep the mesh out from under them entirely (the gear sketch on phones).
-import { startAscii } from "./grid.js?v=20261129";
+import { startAscii } from "./grid.js?v=20261130";
 
 const BG = "#0b0c0e";
 const INK = (a) => `rgba(233,235,238,${a})`;
@@ -166,9 +166,10 @@ const dim = (color, f) => (f >= 1 ? color : color.replace(/,([\d.]+)\)$/, (_, a)
 // `refit` re-reads where the text is, `setMasks` changes the masked areas. Neither rebuilds the mesh.
 export async function startBgp({ canvas, masks = [] }) {
   const refit = () => grid && (fadeTo = fadeMap(grid));
-  // the gallery scrolls inside the page, and its cards move with it; scroll events do not bubble, so listen in the capture phase
-  let queued = false;
-  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; refit(); }); } }, { capture: true, passive: true });
+  // the gallery scrolls inside the page, and its cards move with it; scroll events do not bubble, so listen in the
+  // capture phase. The fade eases anyway, so a refresh every 150 ms is enough and keeps scrolling light
+  let queued = 0;
+  addEventListener("scroll", () => { queued ||= setTimeout(() => { queued = 0; refit(); }, 150); }, { capture: true, passive: true });
   const grid_ = await startAscii(canvas, {
     fontFamily: '"Spline Sans Mono", monospace',
     fontSize: innerWidth < 760 ? 11 : 12,

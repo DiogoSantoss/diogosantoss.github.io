@@ -90,12 +90,12 @@ li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
 .chip.spin { border-color: rgba(255, 108, 2, 0.55); background: rgba(20, 54, 101, 0.35); }
 
 /* work: a gallery of cards, each with a live 3D scene drawn by one shared renderer (#works) */
-#works { z-index: 1; pointer-events: none; }
+/* the canvas lives inside the gallery: above the cards, below each scene's HTML labels */
+#works { z-index: 3; pointer-events: none; }
 .gallery { left: 10vw; right: 10vw; width: auto; top: 84px; transform: none; padding: 0 0 24px; max-height: calc(100vh - 84px - 116px); max-height: calc(100dvh - 84px - 116px); }
-.gallery > h2:first-child { margin-top: 14px; }
+.gallery > h2:first-of-type { margin-top: 14px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
-.card { display: block; color: inherit; border: 1px solid rgba(233, 235, 238, 0.08); border-radius: 8px; overflow: hidden; }
-.cap { background: rgba(11, 12, 14, 0.86); }
+.card { display: block; color: inherit; border: 1px solid rgba(233, 235, 238, 0.08); border-radius: 8px; background: rgba(11, 12, 14, 0.86); overflow: hidden; }
 a.card:hover, a.card:focus-visible { border-color: rgba(108, 182, 255, 0.45); color: inherit; }
 a.card:hover .what { color: var(--req); }
 .view { position: relative; aspect-ratio: 4 / 3; border-bottom: 1px solid rgba(233, 235, 238, 0.06); cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
@@ -105,6 +105,7 @@ a.card:hover .what { color: var(--req); }
 .view-labels .corner { left: 12px; top: 10px; translate: none; transform: none !important; color: var(--mid); font-variant-numeric: tabular-nums; }
 .view-labels .corner2 { left: 12px; top: auto; bottom: 10px; translate: none; transform: none !important; color: var(--mid); font-variant-numeric: tabular-nums; }
 .view-labels .right { translate: 0 -50%; }
+.view-labels .left { translate: -100% -50%; }
 .view-labels .usr { color: var(--usr); }
 .view-labels .add { color: var(--add); }
 .view-labels .code { font-size: 15px; color: var(--ink); letter-spacing: 0.06em; }
