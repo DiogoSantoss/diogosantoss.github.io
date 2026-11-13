@@ -30,12 +30,14 @@ a:hover, a:focus-visible { color: var(--req); outline: none; }
 }
 .content::-webkit-scrollbar { display: none; }
 .content:focus { outline: none; }
-/* page swaps: the mesh and the page links stay put, the rest cross-fades */
+/* page swaps: the mesh, the page links and the footer stay live and still; only the page text cross-fades */
 #bg { view-transition-name: bg; }
 .pages { view-transition-name: pages; }
-::view-transition-group(bg), ::view-transition-group(pages) { animation: none; }
-::view-transition-old(bg), ::view-transition-old(pages) { display: none; }
-::view-transition-new(bg), ::view-transition-new(pages) { animation: none; }
+.badges { view-transition-name: badges; }
+.webring { view-transition-name: webring; }
+::view-transition-group(bg), ::view-transition-group(pages), ::view-transition-group(badges), ::view-transition-group(webring) { animation: none; }
+::view-transition-old(bg), ::view-transition-old(pages), ::view-transition-old(badges), ::view-transition-old(webring) { display: none; }
+::view-transition-new(bg), ::view-transition-new(pages), ::view-transition-new(badges), ::view-transition-new(webring) { animation: none; }
 ::view-transition-old(root) { animation: 140ms ease-in both fade-out; }
 ::view-transition-new(root) { animation: 220ms ease-out both fade-in; }
 @keyframes fade-out { to { opacity: 0; } }
