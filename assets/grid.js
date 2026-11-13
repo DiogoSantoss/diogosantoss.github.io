@@ -1,6 +1,7 @@
 // Shared character-grid renderer for the site background and the mocks. Each mock supplies init/tick/draw.
+// Resolves to { setMasks }: new mask elements rebuild the grid (and call init again).
 export async function startAscii(canvas, opts) {
-  const {
+  let {
     fontFamily,
     fontSize = 14,
     lineHeight = 1.35,
@@ -109,10 +110,11 @@ export async function startAscii(canvas, opts) {
     }
   }
 
+  const control = { setMasks(els) { masks = els; resize(); if (reduce) warmStatic(); } };
   resize();
   if (reduce) {
     warmStatic();
-    return;
+    return control;
   }
 
   let last = 0;
@@ -125,4 +127,5 @@ export async function startAscii(canvas, opts) {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  return control;
 }

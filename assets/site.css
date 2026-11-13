@@ -14,9 +14,6 @@
   --usr: #ff9f43;
   --add: #5ee38a;
   --del: #ff6b6b;
-  /* text sits on translucent panels, so the background still shows through */
-  --panel: rgba(11, 12, 14, 0.45);
-  --edge: rgba(233, 235, 238, 0.07);
   --pad: 22px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,16 +23,23 @@ canvas { position: fixed; inset: 0; transition: opacity 0.35s; }
 a { color: var(--ink); text-decoration: none; }
 a:hover, a:focus-visible { color: var(--req); outline: none; }
 
-.panel, .content, .pages, .webring {
-  background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
-  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
-}
 .content {
   position: fixed; z-index: 2; left: 10vw; top: 50%; transform: translateY(-50%);
   width: calc(50ch + 2 * var(--pad)); padding: var(--pad);
   max-height: calc(100vh - 170px); max-height: calc(100dvh - 170px); overflow-y: auto; scrollbar-width: none;
 }
 .content::-webkit-scrollbar { display: none; }
+.content:focus { outline: none; }
+/* page swaps: the mesh and the page links stay put, the rest cross-fades */
+#bg { view-transition-name: bg; }
+.pages { view-transition-name: pages; }
+::view-transition-group(bg), ::view-transition-group(pages) { animation: none; }
+::view-transition-old(bg), ::view-transition-old(pages) { display: none; }
+::view-transition-new(bg), ::view-transition-new(pages) { animation: none; }
+::view-transition-old(root) { animation: 140ms ease-in both fade-out; }
+::view-transition-new(root) { animation: 220ms ease-out both fade-in; }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } }
 /* the page links stay on top of everything, on every page */
 .pages { position: fixed; z-index: 10; top: 18px; left: 10vw; display: flex; gap: 18px; padding: 9px var(--pad); color: var(--dim); }
 .pages a { color: var(--mid); }

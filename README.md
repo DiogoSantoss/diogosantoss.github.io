@@ -11,3 +11,5 @@ python3 mocks/serve.py 4321
 `mocks/` holds design experiments. It is excluded from the published site by `_config.yml`.
 
 CSS and JS links carry a `?v=YYYYMMDD` version, because GitHub Pages lets browsers cache assets for 10 minutes. Bump it in the HTML pages and in the module imports when a change must reach visitors at once.
+
+Every page loads one module, `assets/app.js`. It starts the background once and handles internal links itself: it fetches the next page (already on hover or touch), swaps the content with a short cross-fade, and leaves the mesh and the page links in place. Each page names its script with `<body data-page="…">`.

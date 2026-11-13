@@ -22,9 +22,9 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@l_Didas_l" />
     <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/site.css?v=20261113" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261114" />
   </head>
-  <body>
+  <body data-page="blog">
     <canvas id="bg" aria-hidden="true"></canvas>
     <nav class="pages">
       <a href="/">home</a>
@@ -32,14 +32,11 @@
       <a href="/gear">gear</a>
       <a href="/blog" aria-current="page">blog</a>
     </nav>
-    <main class="content" id="content">
+    <main class="content" id="content" tabindex="-1">
       <h1>Blog</h1>
       <p>Under construction. This server is still joining the mesh.</p>
       <p><span class="a">blog · session OpenSent</span> <span class="blink">▍</span></p>
     </main>
-    <script type="module">
-      import { startBgp } from "/assets/bgp.js?v=20261113";
-      startBgp({ canvas: document.getElementById("bg") });
-    </script>
+    <script type="module" src="/assets/app.js?v=20261114"></script>
   </body>
 </html>

@@ -6,14 +6,18 @@
 // flies the camera over to that group.
 // With `edit`, the "e" key opens a layout editor: drag the things on the desk around, turn them with
 // , and . and resize the desk. The layout is kept in localStorage; "copy" puts the values on the clipboard.
-import { GROUPS, ITEMS, DESK, setDesk } from "./scene.js?v=20261113";
-import { createView, worldBoxes } from "./engine.js?v=20261113";
+import { GROUPS, ITEMS, DESK, setDesk } from "./scene.js?v=20261114";
+import { createView, worldBoxes } from "./engine.js?v=20261114";
 
 const INK = (a) => `rgba(233,235,238,${a})`;
 const REQ = (a) => `rgba(108,182,255,${a})`;
 const PHONE = () => innerWidth < 760;
 
+// Returns { stop }: the site swaps pages without reloading, so leaving the gear page must end the
+// animation loop and drop every window listener.
 export function startGear({ canvas, content, edit: editable = false }) {
+  const ac = new AbortController(), signal = ac.signal;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const view = createView(canvas);
   const byId = (id) => ITEMS.find((it) => it.id === id);
   const groups = Object.keys(GROUPS);
@@ -84,13 +88,14 @@ export function startGear({ canvas, content, edit: editable = false }) {
     if (k === 1) Object.assign(view.cam, { target: to.target, fit: to.fit, cx: to.cx, cy: to.cy }), (fly = null);
   }
 
-  addEventListener("resize", () => load(sceneKey));
+  addEventListener("resize", () => load(sceneKey), { signal });
   canvas.addEventListener("pointerdown", (e) => {
     if (editor && editor.down(e)) return;
     drag = { x: e.clientX, y: e.clientY, yaw: userYaw, pitch: userPitch }; canvas.style.cursor = "grabbing";
   });
   addEventListener("pointerup", (e) => {
     if (editor && editor.up()) return;
+    if (!drag) return;
     const click = drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6;
     drag = null; canvas.style.cursor = "";
     if (!click || fly) return;
@@ -100,7 +105,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
     if (!hoverable(i)) return (picked = -1);
     pin(i);
     if (picked === i) content.querySelector(`section:not([hidden]) li[data-id="${ITEMS[i].id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  });
+  }, { signal });
   addEventListener("pointermove", (e) => {
     if (editor && editor.move(e)) return;
     if (drag) { userYaw = drag.yaw + (e.clientX - drag.x) * 0.3; userPitch = Math.max(-14, Math.min(24, drag.pitch - (e.clientY - drag.y) * 0.2)); return; }
@@ -108,7 +113,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
     hot = hoverable(i) ? i : -1;
     other = i >= 0 && !inGroup(i) ? i : -1;
     canvas.style.cursor = other >= 0 ? "pointer" : "";
-  });
+  }, { signal });
   canvas.addEventListener("mouseleave", () => (hot = -1));
   // zoom towards the cursor, so the point under it stays put
   canvas.addEventListener("wheel", (e) => {
@@ -122,12 +127,13 @@ export function startGear({ canvas, content, edit: editable = false }) {
 
   load(sceneKey);
   function frame(now) {
+    if (signal.aborted) return;
     const active = rowHot >= 0 ? rowHot : hot >= 0 ? hot : picked, activeId = active >= 0 ? ITEMS[active].id : null;
     content.querySelectorAll("li[data-id]").forEach((li) => li.classList.toggle("hot", li.dataset.id === activeId));
-    if (fly) flying(now);
+    if (fly) reduce ? (fly.t0 = -Infinity, flying(now)) : flying(now);
     else {
       // gentle swing unless the user is turning it, looking at something, or editing
-      if (!drag && active < 0 && !(editor && editor.on)) swing += 1;
+      if (!drag && active < 0 && !(editor && editor.on) && !reduce) swing += 1;
       view.cam.yaw = base.yaw + Math.sin(swing / 300) * 16 + userYaw;
       view.cam.pitch = base.pitch + userPitch;
     }
@@ -135,6 +141,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  signal.addEventListener("abort", () => editor?.panel.remove());
 
   function draw(active) {
     const { ctx } = view;
@@ -197,7 +204,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
       if (saved.desk) setDesk(saved.desk.w, saved.desk.d);
       boxes = worldBoxes(ITEMS);
     }
-    document.head.append(Object.assign(document.createElement("style"), { textContent: `
+    if (!document.getElementById("edit-css")) document.head.append(Object.assign(document.createElement("style"), { id: "edit-css", textContent: `
       .edit { position: fixed; right: 18px; bottom: 18px; z-index: 3; font-size: 12px; color: var(--mid); background: rgba(11,12,14,.9);
         border: 1px solid rgba(233,235,238,.15); padding: 10px 12px; display: none; grid-template-columns: auto auto; gap: 6px 12px; align-items: center; }
       .edit.on { display: grid; }
@@ -247,7 +254,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
       const map = { ArrowLeft: [-k, 0], ArrowRight: [k, 0], ArrowUp: [0, -k], ArrowDown: [0, k], ",": [0, 0, -5 * (e.shiftKey ? 3 : 1)], ".": [0, 0, 5 * (e.shiftKey ? 3 : 1)] };
       if (map[e.key]) { e.preventDefault(); nudge(...map[e.key]); }
       if (e.key === "Tab") { e.preventDefault(); ed.sel = EDITABLE[(EDITABLE.indexOf(ed.sel) + 1) % EDITABLE.length]; sync(); }
-    });
+    }, { signal });
     // screen movement -> desk-plane movement, from how 1 cm in x and in z project at the item
     function dragItem(it, mx, my) {
       const p = it.at, o = view.screen(p), sx = view.screen([p[0] + 1, p[1], p[2]]), sz = view.screen([p[0], p[1], p[2] + 1]);
@@ -267,6 +274,9 @@ export function startGear({ canvas, content, edit: editable = false }) {
       dragItem(byId(ed.sel), e.clientX - moving.x, e.clientY - moving.y); moving = { x: e.clientX, y: e.clientY }; boxes = worldBoxes(ITEMS);
       return true;
     };
+    ed.panel = panel;
     return ed;
   }
+
+  return { stop: () => ac.abort() };
 }

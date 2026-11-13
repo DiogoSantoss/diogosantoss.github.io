@@ -10,8 +10,8 @@
 //   its neighbours validate it with RPKI, find no matching ROA and drop it.
 // - Keepalives tick quietly along every session.
 // It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
-// Elements passed in `masks` keep the mesh out from under them; the page text sits on translucent panels instead.
-import { startAscii } from "./grid.js?v=20261113";
+// Elements passed in `masks` keep the mesh out from under them entirely (the gear sketch on phones).
+import { startAscii } from "./grid.js?v=20261114";
 
 const BG = "#0b0c0e";
 const INK = (a) => `rgba(233,235,238,${a})`;
@@ -59,7 +59,7 @@ function buildMesh(g, W = 16, H = 7) {
 const HOP = 4; // ticks per AS hop, roughly the MRAI timer
 const COLORS = [REQ, ADD, (a) => `rgba(186,148,255,${a})`];
 
-let mesh, asn, jitter, prefixes, sessions, keepalives, nextColor, buf, fade;
+let mesh, asn, jitter, prefixes, sessions, keepalives, nextColor, buf, fade, fadeTo, grid;
 
 // best path from every AS to the origin over the sessions that are up
 function bestPaths(origin) {
@@ -135,11 +135,11 @@ function hijack(g) {
   victim.hijack = { from, t: g.t };
 }
 
-// How bright the mesh is in each cell: full in the open, dimmer close to a text panel and darker still
-// under it, so the lines fade into the back of the text instead of stopping at its edge.
-const PANELS = ".content, .pages, .webring";
+// How bright the mesh is in each cell: full in the open, and darker the closer it gets to the centre of a
+// block of text, so the lines fade into the back of the text. Each block gets an oval a bit larger than it.
+const TEXT = ".content, .pages, .webring";
 function fadeMap(g) {
-  const rects = [...document.querySelectorAll(PANELS)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height);
+  const rects = [...document.querySelectorAll(TEXT)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height);
   const out = new Float32Array(g.cols * g.rows);
   const smooth = (t) => t * t * (3 - 2 * t);
   for (let y = 0; y < g.rows; y++)
@@ -147,20 +147,24 @@ function fadeMap(g) {
       const px = (x + 0.5) * g.cw, py = (y + 0.5) * g.ch;
       let f = 1;
       for (const r of rects) {
-        const dx = Math.max(r.left - px, px - r.right), dy = Math.max(r.top - py, py - r.bottom);
-        // signed distance to the panel edge: positive outside, negative inside
-        const d = dx > 0 || dy > 0 ? Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) : Math.max(dx, dy);
-        const v = d >= 48 ? 1 : d >= 0 ? 0.4 + 0.6 * smooth(d / 48) : 0.12 + 0.28 * smooth(Math.max(0, 1 + d / 36));
-        f = Math.min(f, v);
+        // 0 at the centre of the block, 1 on an oval just outside it
+        const e = Math.hypot((px - (r.left + r.right) / 2) / (r.width / 2 + 56), (py - (r.top + r.bottom) / 2) / (r.height / 2 + 40));
+        if (e < 1) f = Math.min(f, 0.03 + 0.97 * smooth(e) ** 1.5);
       }
       out[y * g.cols + x] = f;
     }
   return out;
 }
+// when the text changes (a new page), the fade eases to its new shape instead of jumping
+function easeFade() {
+  for (let i = 0; i < fade.length; i++) fade[i] += (fadeTo[i] - fade[i]) * 0.3;
+}
 const dim = (color, f) => (f >= 1 ? color : color.replace(/,([\d.]+)\)$/, (_, a) => `,${(+a * f).toFixed(3)})`));
 
-export function startBgp({ canvas, masks = [] }) {
-  startAscii(canvas, {
+// Resolves to { setMasks, refit }. The site swaps pages without reloading, so the mesh keeps running:
+// `refit` re-reads where the text is, `setMasks` changes the masked areas (this rebuilds the mesh).
+export async function startBgp({ canvas, masks = [] }) {
+  const grid_ = await startAscii(canvas, {
     fontFamily: '"Spline Sans Mono", monospace',
     fontSize: innerWidth < 760 ? 11 : 12,
     lineHeight: 1.45,
@@ -168,7 +172,8 @@ export function startBgp({ canvas, masks = [] }) {
     bg: BG,
     masks: masks.filter(Boolean),
     init(g) {
-      fade = fadeMap(g);
+      grid = g;
+      fade = fadeMap(g); fadeTo = fade.slice();
       mesh = buildMesh(g);
       asn = mesh.nodes.map((_, i) => 64512 + i * 3 + rnd(0, 3));
       asn[rnd(0, asn.length)] = 13335;
@@ -179,8 +184,9 @@ export function startBgp({ canvas, masks = [] }) {
     },
     tick(g) {
       g.t++;
-      // panels change size (the webring loads, gear tabs switch), so refresh the fade now and then
-      if (g.t % 12 === 0) fade = fadeMap(g);
+      // text blocks change size (the webring loads, gear tabs switch), so refresh the fade now and then
+      if (g.t % 12 === 0) fadeTo = fadeMap(g);
+      easeFade();
       // a new prefix every ~4 s; with three live, the oldest is withdrawn instead
       if (g.t % 50 === 4) {
         const live = prefixes.filter((p) => p.withdrawn < 0);
@@ -281,4 +287,8 @@ export function startBgp({ canvas, masks = [] }) {
       for (const v of buf.values()) g.put(v.x, v.y, v.c, dim(v.color, fade[v.y * g.cols + v.x] ?? 1));
     },
   });
+  return {
+    setMasks: (els) => grid_?.setMasks(els.filter(Boolean)),
+    refit: () => grid && (fadeTo = fadeMap(grid)),
+  };
 }
