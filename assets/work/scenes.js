@@ -125,44 +125,79 @@ export function makeKit(labelsEl, seed = 1) {
 
 const fade = (k, obj, from, to, dur = 0.4) => k.tween(dur, (e) => (obj.material.opacity = from + (to - from) * e));
 const flash = (k, obj, color, base, dur = 0.6) => { obj.material.color.setHex(color); k.after(dur, () => obj.material.color.setHex(base)); };
+const envelope = (k, c) => {
+  const g = k.group();
+  k.box(0.52, 0.34, 0.02, c, 0.95, g);
+  k.segs([[-0.26, 0.17, 0.011], [0, -0.02, 0.011], [0, -0.02, 0.011], [0.26, 0.17, 0.011]], c, 0.95, g);
+  return g;
+};
 
 export const SCENES = {
-  // Email Routing and Sending: mail lands at the nearest colo, then leaves for the destination
+  // Cloudflare's MTA: a sending server speaks SMTP to the edge; the mail is authenticated (SPF, DKIM, DMARC),
+  // matched to a routing rule, queued and relayed to the destination MX. Email Sending joins the same queue
   cloudflare(k) {
-    const R = 2, g = k.group();
-    g.rotation.z = 0.32;
-    for (let lat = -60; lat <= 60; lat += 30) {
-      const r = R * Math.cos((lat * Math.PI) / 180), y = R * Math.sin((lat * Math.PI) / 180);
-      k.loop(k.circle(r, 80).map((p) => [p[0], y, p[2]]), INK, lat === 0 ? 0.22 : 0.1, g);
-    }
-    for (let lon = 0; lon < 180; lon += 30) {
-      const l = (lon * Math.PI) / 180;
-      k.loop([...Array(80).keys()].map((i) => { const a = (i / 80) * TAU; return [R * Math.cos(a) * Math.cos(l), R * Math.sin(a), R * Math.cos(a) * Math.sin(l)]; }), INK, 0.1, g);
-    }
-    const sph = (lat, lon) => [Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon)];
-    const randLL = () => sph((k.rnd() * 110 - 50) * (Math.PI / 180), k.rnd() * TAU);
-    const colos = [...Array(36)].map(randLL);
-    for (const c of colos) { const d = k.dot(0.032, CF, g, 0.9); d.position.set(...c.map((v) => v * R)); }
-    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    const great = (a, b, h, n = 48) => {
-      const w = Math.acos(Math.min(1, dot(a, b))), s = Math.sin(w) || 1;
-      return [...Array(n + 1).keys()].map((i) => {
-        const t = i / n, f = (R * (1 + h * Math.sin(Math.PI * t))), u = Math.sin((1 - t) * w) / s, v = Math.sin(t * w) / s;
-        return [0, 1, 2].map((j) => (a[j] * u + b[j] * v) * f);
+    const S = [-2.9, 0, 0], G = [2.9, 0, 0], A = [-0.8, 0, 1.9];
+    k.box(0.55, 0.55, 0.55, INK, 0.6).position.set(...S); k.label("mx.sender.net", [S[0], -0.55, 0], "small");
+    k.box(0.55, 0.55, 0.55, INK, 0.6).position.set(...G); k.label("gmail mx", [G[0], -0.55, 0], "small");
+    k.box(0.5, 0.34, 0.34, USR, 0.8).position.set(...A); k.label("worker · send_email", [A[0], -0.36, A[2]], "small");
+    k.box(3.5, 1.1, 1.3, CF, 0.3).position.set(0, 0.05, 0); k.label("cloudflare mta", [0, 0.82, 0], "small");
+    const ST = [["smtp", -1.2], ["auth", -0.4], ["rules", 0.4], ["queue", 1.2]].map(([n, x]) => {
+      const b = k.box(0.46, 0.4, 0.46, CF, 0.85); b.position.set(x, 0, 0); k.label(n, [x, -0.4, 0], "small");
+      return { n, b, p: [x, 0, 0] };
+    });
+    k.segs(ST.slice(1).flatMap((s, i) => [[ST[i].p[0] + 0.23, 0, 0], [s.p[0] - 0.23, 0, 0]]), CF, 0.4);
+    const log = k.label("", null, "corner log"), stat = k.label("", null, "corner2"), lines = [];
+    const say = (s) => { lines.push(s); if (lines.length > 4) lines.shift(); log.set(lines.join("\n")); };
+    const talk = (steps, done) => {
+      const run = (i) => {
+        if (i === steps.length) return done();
+        const [c, s] = steps[i];
+        say("> " + c);
+        k.comet(k.arc(S, ST[0].p, 0.35, 24), { color: REQ, dur: 0.32, len: 0.5, r: 0.025, arrive: () => {
+          say("< " + s);
+          k.comet(k.arc(ST[0].p, S, -0.25, 24), { color: s[0] === "5" ? DEL : INK, dur: 0.28, len: 0.5, r: 0.02, arrive: () => k.after(0.1, () => run(i + 1)) });
+        } });
+      };
+      run(0);
+    };
+    // the envelope visits each stage; a stage can do something on arrival
+    const through = (env, stages, done) => {
+      let i = 0;
+      const step = () => {
+        if (i === stages.length) return done();
+        const a = env.position.toArray(), [st, on] = stages[i++];
+        k.tween(0.35, (e) => env.position.set(...lerp3(a, [st.p[0], 0.36, 0], ease(e))), () => { flash(k, st.b, ADD, CF, 0.3); on?.(); k.after(0.25, step); });
+      };
+      step();
+    };
+    const out = (env, done) => k.tween(1.0, (e) => env.position.set(...k.at(k.arc([ST[3].p[0], 0.36, 0], [G[0], 0.36, 0], 0.9), ease(e))), () => { k.drop(env); done(); });
+    let n = 0, c = 0, id = 0x4f2a;
+    const inbound = () => {
+      const bad = c % 4 === 3, to = bad ? "nobody@diogoms.com" : "me@diogoms.com";
+      talk([["EHLO mx.sender.net", "250 mx.cloudflare.net"], ["MAIL FROM:<alice@sender.net>", "250 ok"], [`RCPT TO:<${to}>`, bad ? "550 5.1.1 no such user" : "250 ok"]], () => {
+        if (bad) return talk([["QUIT", "221 bye"]], () => stat.set("rejected · no routing rule for nobody@"));
+        talk([["DATA", "354 go ahead"]], () => {
+          const env = envelope(k, INK); env.scale.setScalar(0.6); env.position.set(S[0], 0.36, 0);
+          k.tween(0.5, (e) => env.position.set(...k.at(k.arc([S[0], 0.36, 0], [ST[0].p[0], 0.36, 0], 0.5), ease(e))), () => through(env, [
+            [ST[0]],
+            [ST[1], () => stat.set("spf pass · dkim pass · dmarc pass")],
+            [ST[2], () => stat.set("rule: me@diogoms.com → forward to gmail")],
+            [ST[3], () => { id += 0x9d; say(`< 250 2.0.0 queued as ${id.toString(16)}`); k.comet(k.arc(ST[0].p, S, -0.25, 24), { color: ADD, dur: 0.3, r: 0.022 }); }],
+          ], () => out(env, () => stat.set(`relayed to gmail mx · 250 ok · ${String(++n).padStart(4, "0")} delivered`))));
+        });
       });
     };
-    const routed = k.label("", null, "corner");
-    let n = 0;
-    k.every(0.32, () => {
-      const s = randLL(), c = colos.reduce((b, x) => (dot(x, s) > dot(b, s) ? x : b));
-      k.comet(great(s, c, 0.05, 20), { color: REQ, dur: 0.55, len: 0.6, parent: g, r: 0.03, arrive: () => {
-        const far = colos.filter((x) => dot(x, c) < 0.2);
-        k.comet(great(c, far[Math.floor(k.rnd() * far.length)], 0.32), { color: CF, dur: 1.5, len: 0.3, parent: g, r: 0.035 });
-        routed.set(`mail routed ${String(++n).padStart(5, "0")}`);
-      } });
-    });
-    k.frame((dt) => (g.rotation.y += dt * 0.07));
-    k.orbit([0, 0, 0], 7, 0, 12, 0);
+    const sending = () => {
+      lines.length = 0;
+      say("POST send_email {from: me@diogoms.com}");
+      const env = envelope(k, USR); env.scale.setScalar(0.6); env.position.set(A[0], 0.2, A[2]);
+      k.tween(0.6, (e) => env.position.set(...lerp3([A[0], 0.2, A[2]], [ST[1].p[0], 0.36, 0], ease(e))), () => through(env, [
+        [ST[1], () => stat.set("dkim signed · d=diogoms.com")],
+        [ST[3], () => say("queued · email sending")],
+      ], () => out(env, () => stat.set(`sent to gmail mx · 250 ok · ${String(++n).padStart(4, "0")} delivered`))));
+    };
+    k.every(7, () => (c++ % 3 === 2 ? sending() : inbound()));
+    k.orbit([0, 0.2, 0.4], 8.4, 0, 22, 8);
   },
 
   // a distributed validator: four operators, each with a full node stack and Charon in its middle.
@@ -332,67 +367,101 @@ export const SCENES = {
     k.orbit([0.3, 0.5, 0], 8, 8, 22, 10);
   },
 
-  // Mapp.it: map tiles stream in, a satellite pass measures every vine (plant-level NDVI), gaps are counted,
-  // and management zones are drawn from the result
+  // Mapp.it: a farmer looks at their land with a data layer above it (soil moisture). The cursor moves over
+  // the map; the cell under it shows its value and points down to the ground. A click opens the parcel
   spinworks(k) {
-    const T = 6, ts = 1.0, o0 = -((T - 1) * ts) / 2;
-    const tiles = [];
-    for (let i = 0; i < T; i++) for (let j = 0; j < T; j++) {
-      const t = k.loop([[-ts / 2, 0, -ts / 2], [ts / 2, 0, -ts / 2], [ts / 2, 0, ts / 2], [-ts / 2, 0, ts / 2]], INK, 0);
-      t.position.set(o0 + i * ts, -0.02, o0 + j * ts); tiles.push({ t, d: Math.hypot(i - 2.5, j - 2.5) });
+    const W = 6, N = 24, Y = 1.05;
+    const hgt = (x, z) => 0.2 * Math.sin(x * 0.9 + 0.4) * Math.cos(z * 0.7) + 0.1 * Math.sin(x * 2.1 - z * 1.3);
+    const tp = [];
+    for (let i = 0; i <= N; i++) {
+      const a = -W / 2 + (i / N) * W;
+      for (let j = 0; j < N; j++) {
+        const b0 = -W / 2 + (j / N) * W, b1 = -W / 2 + ((j + 1) / N) * W;
+        tp.push([a, hgt(a, b0), b0], [a, hgt(a, b1), b1], [b0, hgt(b0, a), a], [b1, hgt(b1, a), a]);
+      }
     }
-    tiles.sort((a, b) => a.d - b.d);
-    const tileTag = k.label("", null, "corner");
-    // three parcels of vine rows, each vine a short segment
-    const parcels = [[-1.3, -0.9, 0.35, 9], [1.2, -1.0, -0.25, 8], [0.0, 1.35, 0.1, 7]];
-    const vines = [];
-    for (const [cx, cz, a, rows] of parcels) for (let r = 0; r < rows; r++) for (let v = 0; v < 16; v++) {
-      const u = (v - 7.5) * 0.12, w = (r - (rows - 1) / 2) * 0.17;
-      const x = cx + Math.cos(a) * u - Math.sin(a) * w, z = cz + Math.sin(a) * u + Math.cos(a) * w;
-      const gap = k.rnd() < 0.06, ndvi = 0.35 + 0.5 * (0.5 + 0.5 * Math.sin(x * 1.7 + z * 1.1)) * (0.8 + 0.2 * k.rnd());
-      vines.push({ x, z, a, gap, ndvi });
-    }
-    const pts = vines.flatMap((v) => [[v.x - Math.cos(v.a) * 0.05, 0.01, v.z - Math.sin(v.a) * 0.05], [v.x + Math.cos(v.a) * 0.05, 0.01, v.z + Math.sin(v.a) * 0.05]]);
-    const grey = [0.35, 0.36, 0.38], cols = vines.flatMap(() => [grey, grey]);
-    const rowsLine = k.csegs(pts, cols, 0.9);
-    const colAttr = rowsLine.geometry.attributes.color;
-    const ramp = (n) => { const t = Math.min(1, Math.max(0, (n - 0.35) / 0.5)); return t < 0.5 ? [1, 0.42 + t * 0.9, 0.42] : [1.4 - t * 1.05, 0.89, 0.42 + (t - 0.5) * 0.3]; };
-    const scan = k.segs([[0, 0.02, -3.2], [0, 0.02, 3.2], [0, 0.02, -3.2], [0, 0.9, -3.2], [0, 0.02, 3.2], [0, 0.9, 3.2]], REQ, 0.8);
-    const stat = k.label("", null, "corner2"), marks = [];
-    let zones = [];
-    const pass = () => {
-      for (const m of marks.splice(0)) k.drop(m);
-      for (const z of zones.splice(0)) k.drop(z);
-      vines.forEach((v, i) => { colAttr.setXYZ(2 * i, ...grey); colAttr.setXYZ(2 * i + 1, ...grey); });
-      colAttr.needsUpdate = true;
-      tiles.forEach((t) => (t.t.material.opacity = 0));
-      tiles.forEach((t, i) => k.after(i * 0.03, () => fade(k, t.t, 0, 0.16, 0.3)));
-      tileTag.set("tiles z16 · loading");
-      let gaps = 0, sum = 0, seen = 0;
-      k.after(1.3, () => k.tween(3.2, (e) => {
-        const x = -3.2 + 6.4 * e;
-        scan.position.x = x;
-        vines.forEach((v, i) => {
-          if (v.seen || v.x > x) return;
-          v.seen = true; seen++;
-          if (v.gap) { gaps++; const m = k.segs([[v.x - 0.05, 0.03, v.z - 0.05], [v.x + 0.05, 0.03, v.z + 0.05], [v.x - 0.05, 0.03, v.z + 0.05], [v.x + 0.05, 0.03, v.z - 0.05]], DEL, 0.95); marks.push(m); colAttr.setXYZ(2 * i, 0, 0, 0); colAttr.setXYZ(2 * i + 1, 0, 0, 0); }
-          else { sum += v.ndvi; const c = ramp(v.ndvi); colAttr.setXYZ(2 * i, ...c); colAttr.setXYZ(2 * i + 1, ...c); }
-        });
-        colAttr.needsUpdate = true;
-        tileTag.set("sentinel-2 pass · plant-level ndvi");
-        stat.set(`vines ${seen - gaps} · gaps ${gaps} · mean ndvi ${(sum / Math.max(1, seen - gaps)).toFixed(2)}`);
-      }, () => {
-        vines.forEach((v) => (v.seen = false));
-        tileTag.set("management zones");
-        // a zone outline around the low-vigour part of each parcel
-        for (const [cx, cz, a] of parcels) {
-          const r = 0.55 + k.rnd() * 0.25, ring = k.loop(k.circle(r, 40).map(([x, , z]) => [cx + x * 1.25 + 0.25, 0.04, cz + z * 0.85]), USR, 0);
-          zones.push(ring); fade(k, ring, 0, 0.9, 0.5);
-        }
-      }));
+    k.segs(tp, INK, 0.1);
+    // parcels draped on the land, with their vine rows
+    const PARCELS = [[[-2.5, -2.3], [-0.4, -2.0], [-0.6, -0.3], [-2.6, -0.6]], [[0.2, -2.4], [2.5, -2.2], [2.3, 0.1], [0.0, -0.1]], [[-2.4, 0.3], [-0.2, 0.5], [-0.4, 2.5], [-2.5, 2.3]], [[0.4, 0.6], [2.6, 0.8], [2.4, 2.5], [0.3, 2.4]]];
+    const drape = (a, b, n = 20) => [...Array(n + 1).keys()].map((i) => { const x = a[0] + (b[0] - a[0]) * (i / n), z = a[1] + (b[1] - a[1]) * (i / n); return [x, hgt(x, z) + 0.01, z]; });
+    PARCELS.forEach((q) => {
+      k.line([0, 1, 2, 3, 0].map((i) => q[i]).flatMap((p, i, all) => (i ? drape(all[i - 1], p) : [])), INK, 0.5);
+      const rows = [];
+      for (let r = 1; r < 8; r++) { const t = r / 8, a = [q[0][0] + (q[3][0] - q[0][0]) * t, q[0][1] + (q[3][1] - q[0][1]) * t], b = [q[1][0] + (q[2][0] - q[1][0]) * t, q[1][1] + (q[2][1] - q[1][1]) * t]; const d = drape(a, b, 10); for (let i = 1; i < d.length; i++) rows.push(d[i - 1], d[i]); }
+      k.segs(rows, ADD, 0.22);
+    });
+    const inParcel = (x, z) => PARCELS.findIndex((q) => { let ins = false; for (let i = 0, j = 3; i < 4; j = i++) { const [xi, zi] = q[i], [xj, zj] = q[j]; if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins; } return ins; });
+    // the data layer: one colour per vertex, from dry (orange) to wet (blue); the wet patches drift
+    const plane = new THREE.PlaneGeometry(W, W, N, N); plane.rotateX(-Math.PI / 2); plane.translate(0, Y, 0);
+    const pos = plane.attributes.position;
+    plane.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(pos.count * 3), 3));
+    const col = plane.attributes.color.array;
+    k.scene.add(new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4, side: 2 /* DoubleSide */, depthWrite: false })));
+    const gl = [];
+    for (let i = 0; i <= N; i += 2) { const a = -W / 2 + (i / N) * W; gl.push([a, Y, -W / 2], [a, Y, W / 2], [-W / 2, Y, a], [W / 2, Y, a]); }
+    k.segs(gl, INK, 0.07);
+    k.segs([[-1, -1], [1, -1], [1, 1], [-1, 1]].flatMap(([sx, sz]) => [[(sx * W) / 2, hgt((sx * W) / 2, (sz * W) / 2), (sz * W) / 2], [(sx * W) / 2, Y, (sz * W) / 2]]), INK, 0.14);
+    const BLOBS = [[-1.5, -1.2, 1.1, 0.9], [1.4, -1.0, 0.9, -0.9], [0.4, 1.5, 1.2, 0.8], [-1.8, 1.6, 0.8, -0.7], [1.8, 1.8, 0.7, -0.6]];
+    const moist = (x, z, t) => {
+      let v = 0.5;
+      for (const [bx, bz, r, s] of BLOBS) { const cx = bx + 0.4 * Math.sin(t * 0.15 + bz), cz = bz + 0.3 * Math.cos(t * 0.12 + bx); v += 0.5 * s * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (r * r)); }
+      return Math.min(1, Math.max(0, v));
     };
-    k.every(7.5, pass);
-    k.orbit([0, 0, 0.1], 7.4, 0, 52, 10, 0.06);
+    const DRY = [0.95, 0.5, 0.18], MID = [0.85, 0.82, 0.5], WET = [0.3, 0.6, 1];
+    const ramp = (m) => (m < 0.5 ? DRY.map((c, i) => c + (MID[i] - c) * m * 2) : MID.map((c, i) => c + (WET[i] - c) * (m - 0.5) * 2));
+    // the cursor faces the camera and draws on top of everything
+    const cur = k.group(), C = 0.95;
+    const arrow = [[0, 0], [0, -0.3], [0.075, -0.235], [0.13, -0.35], [0.175, -0.33], [0.12, -0.215], [0.215, -0.215]];
+    const tri = [0, 1, 2, 0, 2, 5, 0, 5, 6, 2, 3, 4, 2, 4, 5].map((i) => [arrow[i][0] * C, arrow[i][1] * C, 0]);
+    const fill = new THREE.Mesh(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(tri.flat(), 3)), new THREE.MeshBasicMaterial({ color: 0x0b0c0e, transparent: true, opacity: 0.95, side: 2, depthTest: false, depthWrite: false }));
+    cur.add(fill);
+    const edge = k.loop(arrow.map(([x, y]) => [x * C, y * C, 0.001]), INK, 1, cur);
+    fill.renderOrder = 10; edge.renderOrder = 11; edge.material.depthTest = false;
+    const s = W / N, cell = k.loop([[-s / 2, 0, -s / 2], [s / 2, 0, -s / 2], [s / 2, 0, s / 2], [-s / 2, 0, s / 2]], INK, 0.95);
+    const foot = k.loop([[-s / 2, 0, -s / 2], [s / 2, 0, -s / 2], [s / 2, 0, s / 2], [-s / 2, 0, s / 2]], INK, 0.8);
+    const stem = k.segs([[0, 0, 0], [0, 1, 0]], INK, 0.5);
+    const tip = k.label("", [0, 0, 0], "right small"), pin = k.label("", [0, 0, 0], "usr small");
+    pin.on = false;
+    k.label("mapp.it · layer: soil moisture", null, "corner");
+    const where = k.label("", null, "corner2");
+    const at = { x: 0, z: 0 };
+    k.frame((dt, now) => {
+      for (let i = 0; i < pos.count; i++) col.set(ramp(moist(pos.getX(i), pos.getZ(i), now)), i * 3);
+      plane.attributes.color.needsUpdate = true;
+      cur.position.set(at.x, Y + 0.02, at.z);
+      cur.quaternion.copy(k.camera.quaternion);
+      const cx = Math.min(W / 2 - s / 2, Math.max(-W / 2 + s / 2, (Math.floor(at.x / s + N / 2) - N / 2 + 0.5) * s));
+      const cz = Math.min(W / 2 - s / 2, Math.max(-W / 2 + s / 2, (Math.floor(at.z / s + N / 2) - N / 2 + 0.5) * s));
+      const h = hgt(cx, cz) + 0.02, m = moist(cx, cz, now);
+      cell.position.set(cx, Y + 0.005, cz); foot.position.set(cx, h, cz);
+      stem.position.set(cx, h, cz); stem.scale.y = Y - h;
+      tip.pos.set(at.x + 0.28, Y, at.z);
+      tip.set(`${Math.round(m * 100)}% · ${m < 0.35 ? "dry" : m > 0.65 ? "wet" : "ok"}`);
+      where.set(`zoom 17 · ${(38.7412 - at.z * 0.0009).toFixed(4)} N  ${(9.1395 - at.x * 0.0011).toFixed(4)} W`);
+      // the map follows the cursor a little, like a hand panning
+      k.target.x += (at.x * 0.35 - k.target.x) * Math.min(1, dt * 1.5);
+      k.target.z += (at.z * 0.35 + 0.1 - k.target.z) * Math.min(1, dt * 1.5);
+    });
+    let stops = 0;
+    const move = () => {
+      const from = { ...at }, to = { x: (k.rnd() - 0.5) * 4.8, z: (k.rnd() - 0.5) * 4.8 };
+      const bend = [(k.rnd() - 0.5) * 1.6, (k.rnd() - 0.5) * 1.6];
+      k.tween(1.3, (e) => {
+        const u = ease(e), b = Math.sin(Math.PI * u);
+        at.x = from.x + (to.x - from.x) * u + bend[0] * b * 0.5; at.z = from.z + (to.z - from.z) * u + bend[1] * b * 0.5;
+      }, () => {
+        if (++stops % 3) return;
+        // a click: a ring on the layer, and the parcel's summary on the ground
+        const ring = k.loop(k.circle(0.1, 32), USR, 0.95); ring.position.set(at.x, Y + 0.01, at.z);
+        k.tween(0.6, (e) => { ring.scale.setScalar(1 + e * 2.5); ring.material.opacity = 0.95 * (1 - e); }, () => k.drop(ring));
+        const p = inParcel(at.x, at.z), m = moist(at.x, at.z, k.now);
+        pin.pos.set(at.x, hgt(at.x, at.z) - 0.25, at.z); pin.on = true;
+        pin.set(p < 0 ? `no parcel here` : `parcel ${p + 1} · ${Math.round(m * 100)}% · ${m < 0.35 ? "irrigate" : m > 0.65 ? "skip watering" : "fine"}`);
+        k.after(2.2, () => (pin.on = false));
+      });
+    };
+    k.every(2.4, move, 0.3);
+    k.orbit([0, 0.4, 0.1], 10.4, 18, 36, 10, 0.06);
   },
 
   // consistent hashing: servers own arcs of the ring; a new server takes only its share of keys
@@ -573,13 +642,13 @@ export const SCENES = {
       for (const b of bank) k.comet(k.arc(c.p, b.p, 0.45, 24), { color: REQ, dur: 0.4, len: 0.5, r: 0.024 });
       k.after(0.45, () => {
         const n = ++seq;
-        stage.set(`b${6 + primary}: tentative #${n} ${op.join(" ")}`);
+        stage.set(`b${6 + primary} · phase 1 · tentative #${n} ${op.join(" ")}`);
         const backups = bank.filter((_, i) => i !== primary);
         for (const b of backups) k.comet(k.arc(P.p, b.p, 0.3, 20), { color: USR, dur: 0.35, len: 0.5, r: 0.022, arrive: () => k.comet(k.arc(b.p, P.p, -0.25, 20), { color: INK, dur: 0.3, len: 0.5, r: 0.02 }) });
         k.after(0.75, () => {
           const ok = op[0] === "D" || balance >= op[1];
           if (ok) balance += op[0] === "D" ? op[1] : -op[1];
-          stage.set(`b${6 + primary}: commit #${n} ${op.join(" ")}${ok ? "" : " · refused, balance too low"}`);
+          stage.set(`b${6 + primary} · phase 2 · commit #${n} ${op.join(" ")}${ok ? "" : " · refused, balance too low"}`);
           for (const b of backups) k.comet(k.arc(P.p, b.p, 0.3, 20), { color: ok ? ADD : DEL, dur: 0.35, len: 0.5, r: 0.022 });
           k.comet(k.arc(P.p, c.p, -0.35, 24), { color: ok ? ADD : DEL, dur: 0.4, r: 0.024 });
           bal.set(`balance ${balance} €`);
@@ -658,105 +727,135 @@ export const SCENES = {
     k.orbit([-0.6, 0.2, 0.2], 9.2, 8, 44, 10);
   },
 
-  // EcoWorld@Cloud: the load balancer estimates each request's cost in instructions (Javassist counts,
-  // stored in DynamoDB), sends it to the worker with the lowest total, or to Lambda if no worker has room
+  // EcoWorld@Cloud: Javassist counts the instructions each request runs. From those counts the load balancer
+  // guesses a new request's cost, and sends it to the worker with the least work. Under load, one more worker starts
   aws(k) {
-    const src = [-3.0, 0.2, 0], lb = [-1.4, 0.2, 0], dyn = [-1.4, 1.7, 0];
-    k.box(0.6, 0.5, 0.5, USR, 0.9).position.set(...lb); k.label("load balancer · estimator", [-1.4, -0.3, 0], "small");
-    for (const y of [1.5, 1.9]) k.loop(k.circle(0.28, 32, "xz", [dyn[0], y, 0]), VIO, 0.7);
-    k.label("dynamodb · metrics", [dyn[0] + 0.4, 1.7, 0], "right small");
-    k.label("clients", [src[0], -0.2, 0], "small");
-    const lams = ["simulate", "insectwar", "compress"].map((n, i) => {
-      const c = [1.2 + i * 0.75, 1.75, -0.9];
-      k.loop([...Array(6).keys()].map((j) => { const a = (j / 6) * TAU; return [c[0] + Math.cos(a) * 0.22, c[1] + Math.sin(a) * 0.22, c[2]]; }), VIO, 0.85);
-      return c;
-    });
-    k.label("lambda", [2.0, 2.2, -0.9], "small");
-    const zs = [-1.4, -0.7, 0, 0.7, 1.4], workers = [];
-    const spawn = (z) => {
-      const g = k.group(); g.position.set(1.6, 0.2, z);
-      const b = k.box(0.45, 0.45, 0.45, ADD, 0.9, g), bar = k.solid(0.07, 1, 0.07, REQ, 0.85, g);
-      bar.position.set(0.38, -0.22, 0); bar.scale.y = 0.001;
-      k.after(0.6, () => b.material.color.setHex(INK));
-      const w = { g, b, bar, z, load: 0, miss: 0 }; workers.push(w); return w;
+    const SRC = [-3.0, 0.3, 0], LB = [-1.5, 0.3, 0], XS = [0.0, 0.85, 1.7, 2.55], CAP = 2.0, RATE = 0.1;
+    k.label("requests", [SRC[0], -0.1, 0], "small");
+    const lbBox = k.box(0.5, 0.5, 0.5, USR, 0.9); lbBox.position.set(...LB);
+    k.label("load balancer", [LB[0], -0.2, 0], "small");
+    const est = k.label("", [LB[0], 0.85, 0], "usr small"), stage = k.label("", null, "corner"), stat = k.label("", null, "corner2");
+    const KINDS = [["/simulate", REQ, () => `gen ${200 + Math.floor(k.rnd() * 1800)}`], ["/insectwar", VIO, () => `max ${20 + Math.floor(k.rnd() * 200)}`], ["/compress", ADD, () => `${(0.3 + k.rnd() * 3).toFixed(1)} MP`]];
+    const workers = [];
+    const spawn = () => {
+      const x = XS.find((x) => !workers.some((w) => w.x === x)), g = k.group(); g.position.set(x, 0, 0);
+      const frame = k.box(0.6, CAP, 0.6, INK, 0.3, g); frame.position.y = CAP / 2;
+      const name = k.label(`worker ${XS.indexOf(x) + 1}`, [x, -0.2, 0], "small");
+      const w = { x, g, frame, name, blocks: [], pending: 0, load: () => w.blocks.reduce((s, b) => s + b.h, 0) + w.pending };
+      flash(k, frame, ADD, INK, 0.8);
+      workers.push(w); workers.sort((a, b) => a.x - b.x); return w;
     };
-    spawn(-0.7); spawn(0.7);
-    k.label("ec2 workers", [1.6, -0.45, 1.6], "small");
-    const req = k.label("", [lb[0], 0.7, 0], "usr small"), stage = k.label("", null, "corner");
-    const KINDS = [() => { const g = 200 + Math.floor(k.rnd() * 1800), w = 1 + Math.floor(k.rnd() * 3); return [`/simulate gen=${g} world=${w}`, (g * [11182, 41612, 157493][w - 1]) / 2e10]; }, () => { const m = 20 + Math.floor(k.rnd() * 200); return [`/insectwar max=${m}`, (m * 4e7) / 2e10]; }, () => { const px = 0.3 + k.rnd() * 3; return [`/compressimage ${px.toFixed(1)} MP`, (px * 6e8) / 2e10]; }];
-    k.every(0.55, () => {
-      const kind = Math.floor(k.rnd() * 3), [name, cost] = KINDS[kind]();
-      k.comet(k.path([src, lb], 14), { color: INK, dur: 0.3, len: 0.5, r: 0.018 + Math.min(0.05, cost * 0.06), arrive: () => {
-        req.set(`${name} ≈ ${(cost * 20).toFixed(1)}G instr`);
-        const fit = workers.filter((w) => w.load + cost <= 1).sort((a, b) => a.load - b.load)[0];
-        if (fit) return k.comet(k.arc(lb, fit.g.position.toArray(), 0.4, 24), { color: REQ, dur: 0.4, r: 0.02 + Math.min(0.05, cost * 0.06), arrive: () => (fit.load += cost) });
-        if (cost <= 0.2) return k.comet(k.arc(lb, lams[kind], 0.5, 24), { color: VIO, dur: 0.45, r: 0.028 });
-        stage.set("no room · waiting, retry in 1 s");
+    const retire = (w) => { workers.splice(workers.indexOf(w), 1); w.frame.material.color.setHex(DEL); w.name.on = false; k.after(0.5, () => k.drop(w.g)); };
+    spawn(); spawn();
+    const block = (h, color) => { const g = k.group(); k.solid(0.44, 1, 0.44, color, 0.4, g); k.box(0.44, 1, 0.44, color, 0.9, g); g.scale.y = h; return g; };
+    const top = (w) => w.blocks.reduce((s, b) => s + b.h + 0.02, 0);
+    k.frame((dt) => {
+      for (const w of workers) {
+        const b = w.blocks[0];
+        if (b) {
+          b.h -= dt * RATE;
+          if (b.h <= 0.01) {
+            w.blocks.shift(); k.drop(b.g);
+            k.comet(k.arc([w.x, CAP, 0], LB, 0.5, 24), { color: VIO, dur: 0.6, len: 0.4, r: 0.02 });
+            stat.set(`worker ${XS.indexOf(w.x) + 1} done · measured ${b.cost.toFixed(1)}G instructions`);
+          }
+        }
+        let y = 0;
+        for (const x of w.blocks) { x.g.position.set(w.x, y + x.h / 2, 0); x.g.scale.y = Math.max(0.001, x.h); y += x.h + 0.02; }
+      }
+    });
+    k.every(0.25, () => {
+      if (k.rnd() > 0.17 + 0.13 * Math.sin(k.now * 0.25)) return;
+      const [path, color, arg] = KINDS[Math.floor(k.rnd() * 3)], h = 0.15 + k.rnd() * 0.45, cost = h * 10;
+      k.comet(k.path([SRC, LB], 12), { color: INK, dur: 0.35, len: 0.5, r: 0.025, arrive: () => {
+        est.set(`≈ ${cost.toFixed(1)}G`);
+        const w = [...workers].sort((a, b) => a.load() - b.load())[0];
+        if (w.load() + h > CAP) { stage.set(`${path} ${arg()} · all workers full · 503`); return k.comet(k.arc(LB, SRC, -0.3, 20), { color: DEL, dur: 0.35, r: 0.025 }); }
+        stage.set(`${path} ${arg()} · ≈ ${cost.toFixed(1)}G instr → worker ${XS.indexOf(w.x) + 1}`);
+        flash(k, lbBox, ADD, USR, 0.2);
+        w.pending += h;
+        const b = { g: block(h, color), h, cost };
+        k.tween(0.55, (e) => { const end = [w.x, top(w) + h / 2, 0]; b.g.position.set(...k.at(k.arc([LB[0], LB[1], 0], end, 0.8, 24), ease(e))); }, () => {
+          w.pending -= h;
+          if (workers.includes(w)) w.blocks.push(b); else k.drop(b.g);
+        });
       } });
     });
-    // the workers report their instruction counts; the estimator reads them back
-    k.every(2.5, () => { for (const w of workers) k.comet(k.arc(w.g.position.toArray(), dyn, 0.5, 24), { color: VIO, dur: 0.6, len: 0.4, r: 0.018 }); k.after(0.7, () => k.comet(k.path([dyn, lb], 10), { color: VIO, dur: 0.35, r: 0.02 })); });
-    k.frame((dt) => { for (const w of workers) { w.load = Math.max(0, w.load - dt * 0.09); w.bar.scale.y = Math.max(0.001, w.load); w.bar.position.y = -0.22 + w.load / 2; } });
-    k.every(3, () => {
-      const avg = workers.reduce((s, w) => s + w.load, 0) / workers.length;
-      if (avg > 0.8 && workers.length < zs.length) { spawn(zs.find((z) => !workers.some((w) => w.z === z))); stage.set(`autoscaler: avg ${Math.round(avg * 100)}% > 80% · scale out`); return; }
-      if (avg < 0.2 && workers.length > 1) { const w = workers.pop(); w.b.material.color.setHex(DEL); k.after(0.4, () => k.drop(w.g)); stage.set(`autoscaler: avg ${Math.round(avg * 100)}% < 20% · scale in`); return; }
-      stage.set(`${workers.length} workers · avg load ${Math.round(avg * 100)}%`);
-    });
-    // health checks: GET /test; a worker that misses three is replaced
-    k.every(7, () => { for (const w of workers) k.comet(k.arc(lb, w.g.position.toArray(), -0.3, 20), { color: ADD, dur: 0.35, len: 0.5, r: 0.015 }); });
-    k.orbit([-0.3, 0.6, 0], 8.4, 16, 22, 10);
+    k.every(2.5, () => {
+      const avg = workers.reduce((s, w) => s + w.load(), 0) / workers.length / CAP;
+      if (avg > 0.6 && workers.length < XS.length) { spawn(); stage.set(`autoscaler · average ${Math.round(avg * 100)}% · start a worker`); return; }
+      const idle = workers.find((w) => !w.blocks.length && !w.pending);
+      if (avg < 0.08 && workers.length > 1 && idle) { retire(idle); stage.set(`autoscaler · average ${Math.round(avg * 100)}% · stop a worker`); }
+    }, 1);
+    k.orbit([0.4, 0.8, 0], 8.2, 10, 18, 10);
   },
 
-  // NCMB: password, then a TOTP code from the phone; the server issues a 10-minute access JWT and a
-  // 1-hour refresh cookie; the client buys stock with the JWT, and when it expires it refreshes it
+  // the broker: two locks, a password and a TOTP code; behind them the server signs a JWT that lasts 10 minutes.
+  // Every trade carries the JWT, and when it expires the refresh cookie gets a new one
   "2fa"(k) {
-    const C = [-2.6, 0.3, 0], F = [-1.0, 0.3, 0], S = [0.7, 0.3, 0], DB = [2.4, 0.3, 0], PH = [-2.6, 1.55, 0];
-    k.box(0.5, 0.4, 0.4, INK, 0.6).position.set(...C); k.label("browser", [C[0], -0.15, 0], "small");
-    k.box(0.22, 0.4, 0.04, INK, 0.7).position.set(...PH); k.label("authenticator", [PH[0], PH[1] - 0.55, 0], "small");
-    k.box(0.08, 1.4, 1.4, DEL, 0.5).position.set(...F); k.label("firewall · drop by default", [F[0], -0.65, 0], "small");
-    k.box(0.6, 0.5, 0.5, INK, 0.7).position.set(...S); k.label("nginx tls → express", [S[0], -0.15, 0], "small");
-    for (const y of [0.1, 0.5]) k.loop(k.circle(0.26, 32, "xz", [DB[0], y, 0]), INK, 0.6);
-    k.label("postgres", [DB[0], -0.15, 0], "small");
+    const C = [-2.4, 0.2, 0], S = [1.5, 0.2, 0], PH = [-2.4, 1.5, 0], TK = [-0.8, 1.25, 0];
+    k.box(0.6, 0.45, 0.45, INK, 0.6).position.set(...C); k.label("browser", [C[0], -0.2, 0], "small");
+    k.box(0.22, 0.4, 0.04, INK, 0.7).position.set(...PH); k.label("authenticator", [PH[0], PH[1] - 0.5, 0], "small");
+    k.box(1.4, 1.3, 0.8, INK, 0.6).position.set(...S); k.label("broker", [S[0], -0.65, 0.4], "small");
+    const lock = (x, name) => {
+      const g = k.group(); g.position.set(x, S[1] + 0.32, 0.41);
+      const body = k.box(0.22, 0.17, 0.02, INK, 0.9, g);
+      const sh = k.line([...Array(13).keys()].map((i) => { const a = (Math.PI * i) / 12; return [Math.cos(a) * 0.065, 0.085 + Math.sin(a) * 0.08, 0]; }), INK, 0.9, g);
+      k.label(name, [x, S[1] + 0.05, 0.41], "small");
+      return { open: (on) => { sh.position.y = on ? 0.06 : 0; for (const m of [body, sh]) m.material.color.setHex(on ? ADD : INK); } };
+    };
+    const L1 = lock(S[0] - 0.33, "password"), L2 = lock(S[0] + 0.33, "code");
+    // a price chart on the broker's front, moved by each trade
+    const prices = [...Array(14)].map((_, i) => 0.5 + 0.2 * Math.sin(i * 0.9));
+    const chart = k.line(prices.map((p, i) => [S[0] - 0.55 + i * 0.085, S[1] - 0.5 + p * 0.35, 0.41]), REQ, 0.8);
+    const tick = (up) => { prices.shift(); prices.push(Math.min(1, Math.max(0, prices.at(-1) + (up ? 0.12 : -0.1) * (0.5 + k.rnd())))); prices.forEach((p, i) => chart.geometry.attributes.position.setY(i, S[1] - 0.5 + p * 0.35)); chart.geometry.attributes.position.needsUpdate = true; };
     const dial = k.line([...Array(41).keys()].map((i) => { const a = Math.PI / 2 - (i / 40) * TAU; return [PH[0] + Math.cos(a) * 0.36, PH[1] + Math.sin(a) * 0.36, 0]; }), USR, 0.9);
     const code = k.label("", [PH[0], PH[1] + 0.58, 0], "code");
-    const tokRing = k.line([...Array(41).keys()].map((i) => { const a = Math.PI / 2 - (i / 40) * TAU; return [C[0] + 1.05 + Math.cos(a) * 0.3, C[1] + 0.9 + Math.sin(a) * 0.3, 0]; }), ADD, 0.9);
-    tokRing.visible = false;
-    const tok = k.label("", [C[0] + 1.45, C[1] + 0.9, 0], "right small add"), stage = k.label("", null, "corner"), claims = k.label("", null, "corner2");
-    const go = (a, b, color, done, h = 0.4) => k.comet(k.arc(a, b, h, 24), { color, dur: 0.45, len: 0.5, r: 0.03, arrive: done });
-    let left = 1, ticking = false;
-    k.frame((dt, now) => {
-      dial.geometry.setDrawRange(0, Math.max(2, Math.round((1 - ((now % 6) / 6)) * 40) + 1));
-      if (ticking) { left = Math.max(0, left - dt / 6); tokRing.geometry.setDrawRange(0, Math.max(2, Math.round(left * 40) + 1)); }
-    });
-    k.every(6, () => code.set(String(Math.floor(k.rnd() * 1e6)).padStart(6, "0").replace(/(\d{3})/, "$1 ")));
-    const issue = (then) => { left = 1; ticking = true; tokRing.visible = true; tok.set("access jwt"); tok.on = true; then?.(); };
-    const buy = (n, done) => {
-      stage.set(`POST /stock/buy/user · Authorization: Bearer eyJ…`);
-      go(C, S, REQ, () => { stage.set("jwt signature ✓ · role USER"); go(S, DB, REQ, () => go(DB, S, ADD, () => go(S, C, ADD, () => { stage.set(`200 · StockTransaction #${n} saved`); done?.(); }, -0.4), -0.3)); });
-    };
+    const newCode = () => code.set(String(Math.floor(k.rnd() * 1e6)).padStart(6, "0").replace(/(\d{3})/, "$1 "));
+    newCode(); k.every(6, newCode, 6);
+    // the JWT: a card above the browser, with a ring that runs down over its lifetime
+    const card = k.box(0.5, 0.3, 0.02, ADD, 0.95); card.position.set(...TK); card.visible = false;
+    const ring = k.line([...Array(41).keys()].map((i) => { const a = Math.PI / 2 - (i / 40) * TAU; return [TK[0] + Math.cos(a) * 0.36, TK[1] + Math.sin(a) * 0.36, 0]; }), ADD, 0.9);
+    ring.visible = false;
+    const tok = k.label("", [TK[0] + 0.48, TK[1], 0], "right small add"), stage = k.label("", null, "corner");
+    const go = (a, b, color, done, h = 0.45) => k.comet(k.arc(a, b, h, 24), { color, dur: 0.5, len: 0.5, r: 0.032, arrive: done });
+    let state = "out", left = 0, refreshes = 0, trades = 0;
+    const setTok = (on, color = ADD) => { card.visible = ring.visible = on; tok.on = on; card.material.color.setHex(color); ring.material.color.setHex(color); };
+    const issue = () => { left = 1; state = "in"; setTok(true); tok.set("jwt · 10 min"); };
     const login = () => {
-      ticking = false; tokRing.visible = false; tok.on = false; claims.set("");
-      stage.set("POST /first-stage-login {email, password}");
-      go(C, S, REQ, () => go(S, DB, INK, () => go(DB, S, INK, () => {
-        stage.set("password ✓ (bcrypt) · now the 6-digit code");
-        k.comet(k.path([PH, C], 10), { color: USR, dur: 0.4, r: 0.03, arrive: () => {
-          stage.set("POST /second-stage-login {token: totp}");
-          go(C, S, USR, () => {
-            stage.set("totp ✓ · issue access jwt (10 min) + refresh cookie (1 h)");
-            claims.set("{ email, role: USER } · HS256");
-            go(S, C, ADD, () => issue(() => k.after(0.4, () => buy(1, () => k.after(0.6, () => buy(2, expire))))), -0.4);
-          });
-        } });
-      }, -0.3), -0.3));
-    };
-    const expire = () => {
-      k.tween(1.2, (e) => (left = Math.min(left, 1 - e)), () => {
-        ticking = false; tok.set("expired"); stage.set("403 · access token expired");
-        go(C, S, INK, () => { stage.set("GET /refresh · httpOnly refreshToken cookie"); go(S, C, ADD, () => { issue(); stage.set("new access jwt"); }, -0.4); });
+      state = "busy"; setTok(false); L1.open(false); L2.open(false);
+      stage.set("1 · password");
+      go(C, S, REQ, () => {
+        L1.open(true);
+        stage.set(`2 · code ${code.el.textContent} from the app`);
+        k.comet(k.path([PH, C], 10), { color: USR, dur: 0.4, r: 0.03, arrive: () => go(C, S, USR, () => {
+          L2.open(true);
+          stage.set("3 · both locks open · the broker signs a jwt");
+          go(S, TK, ADD, issue, -0.5);
+        }) });
       });
     };
-    k.every(15, login);
-    k.orbit([-0.1, 0.6, 0], 8.0, 12, 14, 12);
+    const trade = () => {
+      const buy = k.rnd() < 0.6, n = 1 + Math.floor(k.rnd() * 9);
+      stage.set(`4 · ${buy ? "buy" : "sell"} ${n} NCMB · carries the jwt`);
+      flash(k, card, INK, ADD, 0.25);
+      go(TK, S, REQ, () => { tick(buy); trades++; k.comet(k.arc(S, C, -0.35, 24), { color: ADD, dur: 0.45, r: 0.026 }); }, 0.35);
+    };
+    const expire = () => {
+      state = "busy"; setTok(true, DEL); tok.set("expired");
+      if (refreshes++ % 2) {
+        stage.set(`session over · ${trades} trades · log in again`);
+        return k.after(2, () => { trades = 0; login(); });
+      }
+      stage.set("5 · jwt expired · the refresh cookie asks for a new one");
+      go(C, S, INK, () => go(S, TK, ADD, () => { issue(); stage.set("5 · new jwt · no password needed"); }, -0.5));
+    };
+    k.frame((dt, now) => {
+      dial.geometry.setDrawRange(0, Math.max(2, Math.round((1 - (now % 6) / 6) * 40) + 1));
+      if (state === "in") { left -= dt / 7; ring.geometry.setDrawRange(0, Math.max(2, Math.round(left * 40) + 1)); if (left <= 0) expire(); }
+    });
+    k.every(1.6, () => state === "in" && left > 0.15 && trade(), 0.8);
+    k.after(0.3, login);
+    k.orbit([-0.4, 0.6, 0], 7.6, 8, 14, 12);
   },
 };
