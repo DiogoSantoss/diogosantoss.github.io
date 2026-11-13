@@ -28,13 +28,13 @@
     <canvas id="bg" aria-hidden="true"></canvas>
     <canvas id="scene" aria-label="A 3D sketch of the desk and the homelab"></canvas>
     <div id="scene-mask" aria-hidden="true"></div>
+    <nav class="pages">
+      <a href="/">home</a>
+      <a href="/work">work</a>
+      <a href="/gear" aria-current="page">gear</a>
+      <a href="/blog">blog</a>
+    </nav>
     <main class="content" id="content">
-      <nav class="pages">
-        <a href="/">home</a>
-        <a href="/work">work</a>
-        <a href="/gear" aria-current="page">gear</a>
-        <a href="/blog">blog</a>
-      </nav>
       <h1>Gear</h1>
       <div class="tabs">
         <button data-group="desk" aria-pressed="true">desk</button>
@@ -78,7 +78,7 @@
       import { startBgp } from "/assets/bgp.js";
       import { startGear } from "/assets/gear/sketch.js";
       const content = document.getElementById("content");
-      startBgp({ canvas: document.getElementById("bg"), content, footer: document.getElementById("scene-mask") });
+      startBgp({ canvas: document.getElementById("bg"), masks: [document.getElementById("scene-mask")] });
       startGear({ canvas: document.getElementById("scene"), content, edit: new URLSearchParams(location.search).has("edit") });
     </script>
   </body>

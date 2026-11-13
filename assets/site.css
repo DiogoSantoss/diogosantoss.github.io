@@ -14,6 +14,10 @@
   --usr: #ff9f43;
   --add: #5ee38a;
   --del: #ff6b6b;
+  /* text sits on translucent panels, so the background still shows through */
+  --panel: rgba(11, 12, 14, 0.6);
+  --edge: rgba(233, 235, 238, 0.07);
+  --pad: 22px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
@@ -22,13 +26,18 @@ canvas { position: fixed; inset: 0; transition: opacity 0.35s; }
 a { color: var(--ink); text-decoration: none; }
 a:hover, a:focus-visible { color: var(--req); outline: none; }
 
+.panel, .content, .pages, .webring {
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
 .content {
-  position: fixed; left: 10vw; top: 50%; transform: translateY(-50%);
-  width: 50ch; max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: none;
-  transition: opacity 0.35s;
+  position: fixed; z-index: 2; left: 10vw; top: 50%; transform: translateY(-50%);
+  width: calc(50ch + 2 * var(--pad)); padding: var(--pad);
+  max-height: calc(100vh - 170px); max-height: calc(100dvh - 170px); overflow-y: auto; scrollbar-width: none;
 }
 .content::-webkit-scrollbar { display: none; }
-.pages { display: flex; gap: 18px; color: var(--dim); margin-bottom: 26px; }
+/* the page links stay on top of everything, on every page */
+.pages { position: fixed; z-index: 10; top: 18px; left: 10vw; display: flex; gap: 18px; padding: 9px var(--pad); color: var(--dim); }
 .pages a { color: var(--mid); }
 .pages a[aria-current] { color: var(--ink); }
 .pages a[aria-current]::before { content: "▸ "; color: var(--req); }
@@ -38,8 +47,8 @@ p { margin-top: 16px; color: var(--mid); line-height: 1.7; }
 .ball { height: 1.15em; width: auto; vertical-align: -0.22em; }
 .email { margin-top: 10px; }
 .links { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; }
-/* fixed size so the background's masks stay right when the webring loads */
-.webring { position: fixed; left: 5vw; right: 5vw; bottom: 22px; min-height: 1.7em; align-items: center; justify-content: center; display: flex; gap: 12px; white-space: nowrap; overflow: hidden; font-size: 12.5px; color: var(--dim); }
+.webring { position: fixed; z-index: 2; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: calc(100vw - 28px); padding: 7px 16px; min-height: 1.7em; align-items: center; justify-content: center; display: flex; gap: 12px; white-space: nowrap; overflow: hidden; font-size: 12.5px; color: var(--dim); }
+.webring:empty { display: none; }
 .webring a { color: var(--mid); }
 code { font-family: inherit; color: var(--usr); }
 
@@ -56,7 +65,7 @@ li .what b { color: var(--ink); font-weight: 500; }
 /* gear: the 3D sketch sits on its own canvas above the background; the list is pinned near the top */
 #scene { position: fixed; inset: 0; cursor: grab; touch-action: none; }
 #scene-mask { display: none; } /* on phones it keeps the mesh out from under the sketch */
-.gear .content { top: max(40px, calc(50vh - 360px)); transform: none; }
+.gear .content { top: max(84px, calc(50vh - 340px)); transform: none; max-height: calc(100vh - 108px); max-height: calc(100dvh - 108px); }
 .tabs { display: flex; gap: 14px; margin: 18px 0 4px; font-size: 13px; }
 .tabs button { all: unset; cursor: pointer; color: var(--mid); }
 .tabs button[aria-pressed="true"] { color: var(--ink); }
@@ -66,10 +75,11 @@ li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
 
 @media (max-width: 760px) {
   body { font-size: 14px; }
-  .content { left: 22px; right: 22px; width: auto; top: 22px; transform: none; max-height: calc(100vh - 90px); }
-  .pages { margin-bottom: 18px; }
-  .webring { left: 22px; right: 22px; bottom: 14px; }
-  .gear .content { top: 46vh; max-height: calc(54vh - 20px); }
+  :root { --pad: 18px; }
+  .pages { top: 12px; left: 14px; right: 14px; padding: 9px var(--pad); }
+  .content { left: 14px; right: 14px; width: auto; max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); }
+  .webring { bottom: 12px; }
+  .gear .content { top: 46vh; max-height: calc(54vh - 14px); max-height: calc(54dvh - 14px); }
   #scene-mask { display: block; position: fixed; left: 0; right: 0; top: 0; height: 46vh; pointer-events: none; }
   h1 { font-size: 23px; }
   h2 { margin: 18px 0 8px; }

@@ -9,7 +9,8 @@
 //   then the session comes back through the FSM. Or an AS announces a more specific /25 of a live prefix:
 //   its neighbours validate it with RPKI, find no matching ROA and drop it.
 // - Keepalives tick quietly along every session.
-// The page text (`content`, `footer`) masks the grid, so nothing is drawn behind it.
+// It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
+// Elements passed in `masks` keep the mesh out from under them; the page text sits on translucent panels instead.
 import { startAscii } from "./grid.js";
 
 const BG = "#0b0c0e";
@@ -57,9 +58,8 @@ function buildMesh(g, W = 16, H = 7) {
 
 const HOP = 4; // ticks per AS hop, roughly the MRAI timer
 const COLORS = [REQ, ADD, (a) => `rgba(186,148,255,${a})`];
-const FSM = ["Idle", "Connect", "OpenSent", "OpenConfirm", "Established"];
 
-let mesh, asn, jitter, prefixes, notes, sessions, keepalives, nextColor, buf;
+let mesh, asn, jitter, prefixes, sessions, keepalives, nextColor, buf;
 
 // best path from every AS to the origin over the sessions that are up
 function bestPaths(origin) {
@@ -80,18 +80,6 @@ function bestPaths(origin) {
   return { hop, parent };
 }
 
-const asPath = (p, i) => {
-  const out = [];
-  for (let u = i; u >= 0; u = p.parent[u]) out.push(asn[u]);
-  if (out.length > 6) out.splice(3, out.length - 5, "…");
-  return out;
-};
-
-function note(x, y, str, color, life = 48) {
-  if (notes.length >= 4) notes.shift();
-  notes.push({ x, y, str, color, t: 0, life });
-}
-
 function announce(g) {
   const used = new Set(prefixes.map((p) => p.origin));
   const free = mesh.nodes.map((_, i) => i).filter((i) => !used.has(i));
@@ -102,18 +90,11 @@ function announce(g) {
   const p = { pfx, origin, color: COLORS[nextColor++ % COLORS.length], born: g.t, ...bestPaths(origin), withdrawn: -1 };
   p.reach = p.hop.map((h, i) => (h === Infinity ? Infinity : g.t + h * HOP + (h ? jitter[i] : 0)));
   prefixes.push(p);
-  const o = mesh.nodes[origin];
-  note(o.x, o.y, `AS${asn[origin]} UPDATE ${pfx} NEXT_HOP self`, p.color);
-  // later, show the full AS_PATH at the farthest AS that hears it
-  const far = p.hop.reduce((b, h, i) => (h !== Infinity && h > p.hop[b] ? i : b), origin);
-  p.farNote = { i: far, at: p.reach[far] + 2 };
 }
 
 function withdraw(g, p) {
   p.withdrawn = g.t;
   p.gone = p.hop.map((h, i) => (h === Infinity ? -Infinity : g.t + h * HOP + (h ? jitter[i] : 0)));
-  const o = mesh.nodes[p.origin];
-  note(o.x, o.y, `AS${asn[p.origin]} WITHDRAW ${p.pfx}`, DEL);
 }
 
 // a session drops; every prefix whose tree used it reconverges
@@ -123,8 +104,6 @@ function sessionDown(g) {
   const used = mesh.edges.filter((e) => live.some((p) => p.parent[e.a] === e.b || p.parent[e.b] === e.a));
   const e = used.length ? pick(used) : pick(mesh.edges);
   Object.assign(sessions[e.id], { state: "down", since: g.t });
-  const mid = e.cells[e.cells.length >> 1];
-  note(mid[0], mid[1], `AS${asn[e.a]}–AS${asn[e.b]} hold timer expired`, DEL, 60);
   reconverge(g);
 }
 
@@ -153,27 +132,24 @@ function hijack(g) {
   const others = mesh.nodes.map((_, i) => i).filter((i) => i !== victim.origin);
   if (!others.length) return;
   const from = pick(others);
-  const [net] = victim.pfx.split("/");
-  const o = mesh.nodes[from];
-  note(o.x, o.y, `AS${asn[from]} UPDATE ${net}/25 · RPKI invalid · dropped`, DEL, 70);
   victim.hijack = { from, t: g.t };
 }
 
-export function startBgp({ canvas, content, footer }) {
+export function startBgp({ canvas, masks = [] }) {
   startAscii(canvas, {
     fontFamily: '"Spline Sans Mono", monospace',
     fontSize: innerWidth < 760 ? 11 : 12,
     lineHeight: 1.45,
     fps: 12,
     bg: BG,
-    masks: [content, footer].filter(Boolean),
+    masks: masks.filter(Boolean),
     init(g) {
       mesh = buildMesh(g);
       asn = mesh.nodes.map((_, i) => 64512 + i * 3 + rnd(0, 3));
       asn[rnd(0, asn.length)] = 13335;
       jitter = mesh.nodes.map(() => rnd(0, 4));
       sessions = mesh.edges.map(() => ({ state: "up" }));
-      prefixes = []; notes = []; keepalives = []; nextColor = 0;
+      prefixes = []; keepalives = []; nextColor = 0;
       buf = new Map();
     },
     tick(g) {
@@ -188,20 +164,11 @@ export function startBgp({ canvas, content, footer }) {
       const every = 300;
       if (g.t % every === every / 2) (g.t / every) % 2 < 1 ? sessionDown(g) : hijack(g);
 
-      for (const p of prefixes) if (p.farNote && g.t === p.farNote.at && p.withdrawn < 0) {
-        const n = mesh.nodes[p.farNote.i], path = asPath(p, p.farNote.i);
-        note(n.x, n.y, `AS${path[0]} best ${p.pfx} AS_PATH ${path.slice(1).join(" ")}`, p.color, 56);
-      }
       prefixes = prefixes.filter((p) => p.withdrawn < 0 || g.t - p.withdrawn < 40 + 12 * HOP);
 
-      // sessions come back: Idle → Connect → OpenSent → OpenConfirm → Established
-      sessions.forEach((s, id) => {
-        if (s.state !== "down") return;
-        const k = Math.floor((g.t - s.since - 70) / 12);
-        if (k < 0) return;
-        const e = mesh.edges[id], mid = e.cells[e.cells.length >> 1];
-        if (k < FSM.length && (g.t - s.since - 70) % 12 === 0) note(mid[0], mid[1], FSM[k], k === FSM.length - 1 ? ADD : USR, 14);
-        if (k >= FSM.length) { s.state = "up"; reconverge(g); }
+      // a dropped session comes back after ~11 s (Idle → … → Established) and the routes reconverge
+      sessions.forEach((s) => {
+        if (s.state === "down" && g.t - s.since > 130) { s.state = "up"; reconverge(g); }
       });
 
       // keepalives: a small dot crosses a random session now and then
@@ -210,8 +177,6 @@ export function startBgp({ canvas, content, footer }) {
         if (sessions[e.id].state === "up") keepalives.push({ e, t: g.t, back: Math.random() < 0.5 });
       }
       keepalives = keepalives.filter((k) => g.t - k.t < k.e.cells.length);
-      notes.forEach((n) => n.t++);
-      notes = notes.filter((n) => n.t < n.life);
     },
     draw(g) {
       const { nodes, edges } = mesh;
@@ -286,12 +251,6 @@ export function startBgp({ canvas, content, footer }) {
       // faint ASN under every router
       nodes.forEach((n, i) => [...String(asn[i])].forEach((c, k) => put(n.x - 2 + k, n.y + 1, c, INK(asn[i] === 13335 ? 0.16 : 0.08), 3)));
 
-      for (const n of notes) {
-        const a = Math.min(1, (n.life - n.t) / 16) * 0.6;
-        const cols = Math.min(g.cols, Math.floor(innerWidth / g.cw)) - 2;
-        const x = n.x + 2 + n.str.length < cols ? n.x + 2 : Math.max(1, n.x - 2 - n.str.length);
-        [...n.str].forEach((c, k) => put(x + k, n.y, c, n.color(a), 9));
-      }
       for (const v of buf.values()) g.put(v.x, v.y, v.c, v.color);
     },
   });

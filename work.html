@@ -26,13 +26,13 @@
   </head>
   <body>
     <canvas id="bg" aria-hidden="true"></canvas>
+    <nav class="pages">
+      <a href="/">home</a>
+      <a href="/work" aria-current="page">work</a>
+      <a href="/gear">gear</a>
+      <a href="/blog">blog</a>
+    </nav>
     <main class="content" id="content">
-      <nav class="pages">
-        <a href="/">home</a>
-        <a href="/work" aria-current="page">work</a>
-        <a href="/gear">gear</a>
-        <a href="/blog">blog</a>
-      </nav>
       <h1>Work</h1>
       <h2>experience</h2>
       <ul>
@@ -56,10 +56,7 @@
     </main>
     <script type="module">
       import { startBgp } from "/assets/bgp.js";
-      startBgp({
-        canvas: document.getElementById("bg"),
-        content: document.getElementById("content"),
-      });
+      startBgp({ canvas: document.getElementById("bg") });
     </script>
   </body>
 </html>

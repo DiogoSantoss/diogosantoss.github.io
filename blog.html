@@ -26,23 +26,20 @@
   </head>
   <body>
     <canvas id="bg" aria-hidden="true"></canvas>
+    <nav class="pages">
+      <a href="/">home</a>
+      <a href="/work">work</a>
+      <a href="/gear">gear</a>
+      <a href="/blog" aria-current="page">blog</a>
+    </nav>
     <main class="content" id="content">
-      <nav class="pages">
-        <a href="/">home</a>
-        <a href="/work">work</a>
-        <a href="/gear">gear</a>
-        <a href="/blog" aria-current="page">blog</a>
-      </nav>
       <h1>Blog</h1>
       <p>Under construction. This server is still joining the mesh.</p>
       <p><span class="a">blog · session OpenSent</span> <span class="blink">▍</span></p>
     </main>
     <script type="module">
       import { startBgp } from "/assets/bgp.js";
-      startBgp({
-        canvas: document.getElementById("bg"),
-        content: document.getElementById("content"),
-      });
+      startBgp({ canvas: document.getElementById("bg") });
     </script>
   </body>
 </html>

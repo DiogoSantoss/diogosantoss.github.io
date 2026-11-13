@@ -1,6 +1,7 @@
 // The gear page: the list on the left (desk / homelab tabs) and a 3D sketch of the room on the right.
 // The whole room is always drawn; the tab picks which group the camera frames and which section shows.
-// Hovering a row highlights its object; hovering an object highlights its rows.
+// Hovering a row highlights its object; hovering an object highlights its rows. A click or a tap pins
+// the highlight (that is how it works on phones); a second tap, or a tap on empty space, clears it.
 // The sketch swings slowly; drag to turn it, scroll to zoom. Clicking a faded object, or a tab,
 // flies the camera over to that group.
 // With `edit`, the "e" key opens a layout editor: drag the things on the desk around, turn them with
@@ -23,7 +24,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
   const hoverable = (i) => listed(i) || (inGroup(i) && !!ITEMS[i].label);
   const nameOf = (it) => it.label || content.querySelector(`li[data-id="${it.id}"] b`)?.textContent || it.id;
   let boxes = worldBoxes(ITEMS);
-  let clip, hot = -1, rowHot = -1, swing = 0, drag = null, userYaw = 0, userPitch = 0, zoom = 1, other = -1, fly = null;
+  let clip, hot = -1, rowHot = -1, picked = -1, swing = 0, drag = null, userYaw = 0, userPitch = 0, zoom = 1, other = -1, fly = null;
   const base = { yaw: 0, pitch: 0 };
   const editor = editable ? makeEditor() : null;
 
@@ -32,14 +33,21 @@ export function startGear({ canvas, content, edit: editable = false }) {
     content.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.group === sceneKey));
     listedIds = new Set([...content.querySelectorAll(`section[data-group="${sceneKey}"] li[data-id]`)].map((li) => li.dataset.id));
   }
+  const pin = (i) => (picked = picked === i ? -1 : i);
   content.querySelectorAll("li[data-id]").forEach((li) => {
-    li.addEventListener("mouseenter", () => (rowHot = ITEMS.indexOf(byId(li.dataset.id))));
-    li.addEventListener("mouseleave", () => (rowHot = -1));
+    const i = ITEMS.indexOf(byId(li.dataset.id));
+    li.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && (rowHot = i));
+    li.addEventListener("pointerleave", () => (rowHot = -1));
+    li.addEventListener("click", () => pin(i));
   });
   content.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => b.dataset.group !== sceneKey && load(b.dataset.group, true)));
 
   function area() {
-    if (PHONE()) return { x: 10, y: 10, w: innerWidth - 20, h: innerHeight * 0.44 };
+    if (PHONE()) {
+      // between the page links at the top and the list
+      const y = (document.querySelector(".pages")?.getBoundingClientRect().bottom || 0) + 8;
+      return { x: 10, y, w: innerWidth - 20, h: innerHeight * 0.46 - y - 8 };
+    }
     const r = content.getBoundingClientRect(), x = r.right + 40;
     return { x, y: 40, w: innerWidth - x - 40, h: innerHeight - 80 };
   }
@@ -50,7 +58,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
   function load(key, animate = false) {
     const from = animate ? snap() : null;
     sceneKey = key; history.replaceState(null, "", "#" + key);
-    hot = rowHot = -1; userYaw = userPitch = 0; zoom = 1;
+    hot = rowHot = picked = -1; userYaw = userPitch = 0; zoom = 1;
     list();
     clip = area();
     view.resize(clip);
@@ -83,10 +91,15 @@ export function startGear({ canvas, content, edit: editable = false }) {
   });
   addEventListener("pointerup", (e) => {
     if (editor && editor.up()) return;
-    // a click (not a drag) on a faded object flies to its group
-    const click = drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4;
+    const click = drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6;
     drag = null; canvas.style.cursor = "";
-    if (click && other >= 0 && !fly) load(ITEMS[other].group, true);
+    if (!click || fly) return;
+    // a click (not a drag): a faded object flies to its group, an object of this group is pinned
+    const i = view.pick(e.clientX, e.clientY);
+    if (i >= 0 && !inGroup(i)) return load(ITEMS[i].group, true);
+    if (!hoverable(i)) return (picked = -1);
+    pin(i);
+    if (picked === i) content.querySelector(`section:not([hidden]) li[data-id="${ITEMS[i].id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   });
   addEventListener("pointermove", (e) => {
     if (editor && editor.move(e)) return;
@@ -109,7 +122,7 @@ export function startGear({ canvas, content, edit: editable = false }) {
 
   load(sceneKey);
   function frame(now) {
-    const active = rowHot >= 0 ? rowHot : hot, activeId = active >= 0 ? ITEMS[active].id : null;
+    const active = rowHot >= 0 ? rowHot : hot >= 0 ? hot : picked, activeId = active >= 0 ? ITEMS[active].id : null;
     content.querySelectorAll("li[data-id]").forEach((li) => li.classList.toggle("hot", li.dataset.id === activeId));
     if (fly) flying(now);
     else {
@@ -160,10 +173,13 @@ export function startGear({ canvas, content, edit: editable = false }) {
   }
 
   function label(ctx, i) {
-    const p = anchor(i);
+    const p = anchor(i), text = nameOf(ITEMS[i]);
     ctx.font = '12px "Spline Sans Mono", monospace';
-    ctx.strokeStyle = REQ(0.5); ctx.beginPath(); ctx.moveTo(p.x, p.y - 4); ctx.lineTo(p.x + 14, p.y - 22); ctx.stroke();
-    ctx.fillStyle = REQ(0.95); ctx.fillText(nameOf(ITEMS[i]), p.x + 18, p.y - 24);
+    // point the label left when it would run off the right edge
+    const dir = p.x + 18 + ctx.measureText(text).width > view.size()[0] - 8 ? -1 : 1;
+    ctx.strokeStyle = REQ(0.5); ctx.beginPath(); ctx.moveTo(p.x, p.y - 4); ctx.lineTo(p.x + 14 * dir, p.y - 22); ctx.stroke();
+    ctx.fillStyle = REQ(0.95); ctx.textAlign = dir < 0 ? "end" : "start";
+    ctx.fillText(text, p.x + 18 * dir, p.y - 24); ctx.textAlign = "start";
   }
 
   // ── layout editor (only with `edit`) ───────────────────

@@ -27,23 +27,20 @@
   </head>
   <body>
     <canvas id="bg" aria-hidden="true"></canvas>
+    <nav class="pages">
+      <a href="/">home</a>
+      <a href="/work">work</a>
+      <a href="/gear">gear</a>
+      <a href="/blog">blog</a>
+    </nav>
     <main class="content" id="content">
-      <nav class="pages">
-        <a href="/">home</a>
-        <a href="/work">work</a>
-        <a href="/gear">gear</a>
-        <a href="/blog">blog</a>
-      </nav>
       <h1>404</h1>
       <p>No page at <code id="lost-path">this path</code>.</p>
       <div class="links"><a href="/">back home</a></div>
     </main>
     <script type="module">
       import { startBgp } from "/assets/bgp.js";
-      startBgp({
-        canvas: document.getElementById("bg"),
-        content: document.getElementById("content"),
-      });
+      startBgp({ canvas: document.getElementById("bg") });
       const path = location.pathname;
       document.getElementById("lost-path").textContent = path.length > 28 ? path.slice(0, 27) + "…" : path;
     </script>
