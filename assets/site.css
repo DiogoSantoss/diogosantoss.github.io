@@ -77,12 +77,39 @@ li .what b { color: var(--ink); font-weight: 500; }
 li[data-id] { cursor: default; }
 li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
 
+/* home: a strip of 88×31 buttons (by Cody Collier, a90.com) that drifts left; hover stops it */
+.badges {
+  position: fixed; z-index: 2; left: 0; right: 0; bottom: 58px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.badges .track { display: flex; gap: 6px; width: max-content; animation: drift 150s linear infinite; }
+.badges:hover .track { animation-play-state: paused; }
+.badges a { display: block; line-height: 0; opacity: 0.85; transition: opacity 0.2s, transform 0.2s; }
+.badges a:hover, .badges a:focus-visible { opacity: 1; transform: translateY(-2px); }
+.badges img { width: 88px; height: 31px; }
+@keyframes drift { to { transform: translateX(calc(-50% - 3px)); } }
+@media (prefers-reduced-motion: reduce) { .badges { overflow-x: auto; scrollbar-width: none; } .badges .track { animation: none; } }
+
+/* work: the email timeline, drawn with three.js to the right of the text */
+.flow { margin: 0; position: fixed; z-index: 1; left: calc(10vw + 50ch + 2 * var(--pad) + 4vw); right: 4vw; top: 50%; height: min(52vh, 460px); transform: translateY(-50%); pointer-events: none; }
+.flow canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.flow-labels { position: absolute; inset: 0; font-size: 11px; color: var(--dim); opacity: var(--fade, 1); }
+.flow-labels span { position: absolute; left: 0; top: 0; white-space: nowrap; translate: 0 -50%; transition: opacity 0.4s; }
+.flow-labels .stage { translate: -50% -100%; color: var(--mid); }
+.flow-labels .end { translate: -50% 0; }
+.flow-labels .usr { color: var(--usr); }
+.flow-labels .del { color: var(--del); }
+.flow-labels .clock { translate: -100% -100%; color: var(--mid); font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .flow { display: none; } }
+
 @media (max-width: 760px) {
   body { font-size: 14px; }
   :root { --pad: 18px; }
   .pages { top: 12px; left: 14px; right: 14px; padding: 9px var(--pad); }
   .content { left: 14px; right: 14px; width: auto; max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); }
   .webring { bottom: 12px; }
+  .badges { bottom: 50px; }
+  .badges img { width: 66px; height: 23px; }
   .gear .content { top: 46vh; max-height: calc(54vh - 14px); max-height: calc(54dvh - 14px); }
   #scene-mask { display: block; position: fixed; left: 0; right: 0; top: 0; height: 46vh; pointer-events: none; }
   h1 { font-size: 23px; }

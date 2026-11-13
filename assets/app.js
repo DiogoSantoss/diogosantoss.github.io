@@ -2,7 +2,7 @@
 // on internal links itself: it fetches the next page, swaps the page content in place and keeps the
 // background, the page links and the fonts as they are. The mesh does not restart between pages.
 // Each page sets <body data-page="…">; `PAGES` starts that page's script and stops it again on leave.
-import { startBgp } from "./bgp.js?v=20261114";
+import { startBgp } from "./bgp.js?v=20261115";
 
 const V = new URL(import.meta.url).searchParams.get("v") || "";
 const KEEP = (el) => el.id === "bg" || el.matches("nav.pages, script");
@@ -13,6 +13,10 @@ const PAGES = {
   home: async (signal) => {
     const { startWebring } = await import(`./webring.js?v=${V}`);
     startWebring(document.getElementById("webring"), signal);
+    // the badge strip loops: a second copy of the badges follows the first
+    const track = document.querySelector(".badges .track");
+    if (track && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+      for (const a of [...track.children]) track.append(Object.assign(a.cloneNode(true), { tabIndex: -1 }));
   },
   gear: async (signal) => {
     const { startGear } = await import(`./gear/sketch.js?v=${V}`);
@@ -23,6 +27,14 @@ const PAGES = {
       edit: new URLSearchParams(location.search).has("edit"),
     });
     signal.addEventListener("abort", gear.stop);
+  },
+  work: async (signal) => {
+    const fig = document.querySelector(".flow");
+    if (!fig || getComputedStyle(fig).display === "none") return;
+    const { startTimeline } = await import(`./work/timeline.js?v=${V}`);
+    if (signal.aborted) return;
+    const flow = startTimeline({ canvas: fig.querySelector("canvas"), labels: fig.querySelector(".flow-labels") });
+    signal.addEventListener("abort", flow.stop);
   },
   lost: () => {
     const path = location.pathname;
