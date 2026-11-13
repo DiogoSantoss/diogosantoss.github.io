@@ -22,37 +22,77 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@l_Didas_l" />
     <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/site.css?v=20261119" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261121" />
   </head>
   <body data-page="work">
     <canvas id="bg" aria-hidden="true"></canvas>
+    <canvas id="works" aria-hidden="true"></canvas>
     <nav class="pages">
       <a href="/">home</a>
       <a href="/work" aria-current="page">work</a>
       <a href="/gear">gear</a>
       <a href="/blog">blog</a>
     </nav>
-    <main class="content" id="content" tabindex="-1">
+    <main class="content gallery" id="content" tabindex="-1">
       <h1>Work</h1>
       <h2>experience</h2>
-      <ul>
-        <li><span class="when">2026 –</span><span class="what"><b>Systems Engineer</b> · Cloudflare</span></li>
-        <li><span class="when">2024–26</span><span class="what"><b>Protocol Engineer</b> · DV Labs</span></li>
-        <li><span class="when">2024</span><span class="what"><b>Researcher</b> · INESC-ID</span></li>
-        <li><span class="when">2022–24</span><span class="what"><b>Full Stack Developer</b> · DEI-IST</span></li>
-        <li><span class="when">2023</span><span class="what"><b>Software Engineer Intern</b> · Jungle</span></li>
-        <li><span class="when">2021</span><span class="what"><b>Front-End Intern</b> · Spin.Works</span></li>
-      </ul>
+      <div class="cards">
+        <article class="card">
+          <div class="view" data-scene="cloudflare"></div>
+          <div class="cap"><span class="when">2026 –</span><span class="what"><b>Systems Engineer</b> · <span class="chip cf"><img src="/assets/chips/cloudflare.svg" alt="" width="18" height="7" />Cloudflare</span></span><p>Email Routing and Email Sending. Mail lands at the nearest data centre, then goes on to its inbox.</p></div>
+        </article>
+        <article class="card">
+          <div class="view" data-scene="dvlabs"></div>
+          <div class="cap"><span class="when">2024–26</span><span class="what"><b>Protocol Engineer</b> · DV Labs</span><p>Charon: one Ethereum validator run by a cluster. The nodes agree on each duty, and any three signature shares make the signature.</p></div>
+        </article>
+        <article class="card">
+          <div class="view" data-scene="inesc"></div>
+          <div class="cap"><span class="when">2024</span><span class="what"><b>Researcher</b> · INESC-ID</span><p>Alea-BFT in Charon, in place of QBFT. No leader: agreement visits each node's queue in turn, so a crashed node only skips its turn.</p></div>
+        </article>
+        <article class="card">
+          <div class="view" data-scene="dei"></div>
+          <div class="cap"><span class="when">2022–24</span><span class="what"><b>Full Stack Developer</b> · <span class="chip ist"><img src="/assets/chips/ist.svg" alt="" width="15" height="7" />DEI-IST</span></span><p>Thesis defence scheduling for the department: each defence gets a day, a slot and a room that its jury is free for.</p></div>
+        </article>
+        <article class="card">
+          <div class="view" data-scene="jungle"></div>
+          <div class="cap"><span class="when">2023</span><span class="what"><b>Software Engineer Intern</b> · Jungle AI</span><p>Parallel data processing with Ray on Kubernetes: objects from S3 go through SQS, fan out to workers, and results go back to S3.</p></div>
+        </article>
+        <article class="card">
+          <div class="view" data-scene="spinworks"></div>
+          <div class="cap"><span class="when">2021</span><span class="what"><b>Front-End Intern</b> · Spin.Works</span><p>A map app for precision agriculture: farmers move across the terrain and manage each farming zone.</p></div>
+        </article>
+      </div>
       <h2>projects</h2>
-      <ul>
-        <li><span class="when">ring</span><a class="what" href="https://github.com/DiogoSantoss/consistent-hashing">consistent hashing on an AVL tree ↗</a></li>
-        <li><span class="when">mail</span><a class="what" href="https://github.com/DiogoSantoss/gmail-alias-sender">reply from your own domain in Gmail ↗</a></li>
-        <li><span class="when">qbft</span><a class="what" href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft">state machine replication with QBFT ↗</a></li>
-        <li><span class="when">paxos</span><a class="what" href="https://github.com/DiogoSantoss/fault-tolerant-bank">fault-tolerant bank on multi-paxos ↗</a></li>
-        <li><span class="when">gke</span><a class="what" href="https://github.com/DiogoSantoss/nvolopi">microservices on GKE ↗</a></li>
-        <li><span class="when">aws</span><a class="what" href="https://github.com/DiogoSantoss/cloud-computing-virtualization">instrumenting Java apps on AWS ↗</a></li>
-        <li><span class="when">2fa</span><a class="what" href="https://github.com/DiogoSantoss/2fa-stock-broker">secure broker with JWT and 2FA ↗</a></li>
-      </ul>
+      <div class="cards">
+        <a class="card" href="https://github.com/DiogoSantoss/consistent-hashing">
+          <div class="view" data-scene="ring"></div>
+          <div class="cap"><span class="when">ring</span><span class="what">consistent hashing on an AVL tree ↗</span><p>Servers own arcs of the ring. Add one, and only its share of the keys moves.</p></div>
+        </a>
+        <a class="card" href="https://github.com/DiogoSantoss/gmail-alias-sender">
+          <div class="view" data-scene="mail"></div>
+          <div class="cap"><span class="when">mail</span><span class="what">reply from your own domain in Gmail ↗</span><p>Mail comes in through Email Routing. The reply goes out through the Email Sending API, from your domain.</p></div>
+        </a>
+        <a class="card" href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft">
+          <div class="view" data-scene="qbft"></div>
+          <div class="cap"><span class="when">qbft</span><span class="what">state machine replication with QBFT ↗</span><p>Pre-prepare, prepare, commit: then every node appends the same block.</p></div>
+        </a>
+        <a class="card" href="https://github.com/DiogoSantoss/fault-tolerant-bank">
+          <div class="view" data-scene="paxos"></div>
+          <div class="cap"><span class="when">paxos</span><span class="what">fault-tolerant bank on multi-paxos ↗</span><p>Every operation is accepted in a log slot before the balance changes. If the leader fails, another one takes over.</p></div>
+        </a>
+        <a class="card" href="https://github.com/DiogoSantoss/nvolopi">
+          <div class="view" data-scene="gke"></div>
+          <div class="cap"><span class="when">gke</span><span class="what">microservices on GKE ↗</span><p>When traffic goes up, the autoscaler adds pods. When it goes down, it removes them.</p></div>
+        </a>
+        <a class="card" href="https://github.com/DiogoSantoss/cloud-computing-virtualization">
+          <div class="view" data-scene="aws"></div>
+          <div class="cap"><span class="when">aws</span><span class="what">instrumenting Java apps on AWS ↗</span><p>Each request is priced by its instruction count and sent to the least-loaded worker. The fleet scales with the load.</p></div>
+        </a>
+        <a class="card" href="https://github.com/DiogoSantoss/2fa-stock-broker">
+          <div class="view" data-scene="2fa"></div>
+          <div class="cap"><span class="when">2fa</span><span class="what">secure broker with JWT and 2FA ↗</span><p>Password, then a time-based code, then a signed token that the broker accepts.</p></div>
+        </a>
+      </div>
     </main>
     <aside class="badges" data-fade aria-label="88×31 buttons by Cody Collier (a90.com)">
       <div class="track">
@@ -89,6 +129,6 @@
       </div>
     </aside>
     <footer class="webring" id="webring" aria-label="webring"></footer>
-    <script type="module" src="/assets/app.js?v=20261119"></script>
+    <script type="module" src="/assets/app.js?v=20261121"></script>
   </body>
 </html>

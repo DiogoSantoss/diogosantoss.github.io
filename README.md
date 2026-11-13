@@ -16,3 +16,7 @@ Every page loads one module, `assets/app.js`. It starts the background once and 
 
 
 The 88×31 buttons in the footer of every page are by Cody Collier ([a90.com/experiments/88x31](https://a90.com/experiments/88x31/), "Take one."). They are hosted here and each links back to his page.
+
+The work page is a gallery: each job and project has a live 3D scene (`assets/work/scenes.js`). One three.js renderer (`assets/work/gallery.js`) draws all visible cards into their own rectangles of a single canvas, and pauses the ones off screen. `assets/vendor/three.js` is a tree-shaken, minified build of three.js r187 (MIT) with only the classes the scenes use.
+
+Names like Cloudflare and Técnico are chips: `<span class="chip cf">` with a pixel-art logo from `assets/chips/`.
