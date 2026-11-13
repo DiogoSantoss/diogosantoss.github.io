@@ -11,7 +11,7 @@
 // - Keepalives tick quietly along every session.
 // It draws no text: only the routers, their ASNs, and the dots and waves of the routing traffic.
 // Elements passed in `masks` keep the mesh out from under them entirely (the gear sketch on phones).
-import { startAscii } from "./grid.js?v=20261127";
+import { startAscii } from "./grid.js?v=20261128";
 
 const BG = "#0b0c0e";
 const INK = (a) => `rgba(233,235,238,${a})`;
@@ -137,8 +137,8 @@ function hijack(g) {
 
 // How bright the mesh is in each cell: full in the open, and darker the closer it gets to the centre of a
 // block of text, so the lines fade into the back of the text. Each block gets an oval a bit larger than it.
-// the work gallery is a wide scrolling grid: its cards hide the mesh themselves, only its headings fade it
-const TEXT = ".content:not(.gallery), .gallery h2, .pages, .webring, [data-fade]";
+// On the work page each card is its own block, so the mesh also fades into the back of every scene
+const TEXT = ".content:not(.gallery), .gallery h2, .gallery .card, .pages, .webring, [data-fade]";
 function fadeMap(g) {
   const rects = [...document.querySelectorAll(TEXT)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height);
   const out = new Float32Array(g.cols * g.rows);
@@ -165,6 +165,10 @@ const dim = (color, f) => (f >= 1 ? color : color.replace(/,([\d.]+)\)$/, (_, a)
 // Resolves to { setMasks, refit }. The site swaps pages without reloading, so the mesh keeps running:
 // `refit` re-reads where the text is, `setMasks` changes the masked areas. Neither rebuilds the mesh.
 export async function startBgp({ canvas, masks = [] }) {
+  const refit = () => grid && (fadeTo = fadeMap(grid));
+  // the gallery scrolls inside the page, and its cards move with it; scroll events do not bubble, so listen in the capture phase
+  let queued = false;
+  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; refit(); }); } }, { capture: true, passive: true });
   const grid_ = await startAscii(canvas, {
     fontFamily: '"Spline Sans Mono", monospace',
     fontSize: innerWidth < 760 ? 11 : 12,
@@ -290,6 +294,6 @@ export async function startBgp({ canvas, masks = [] }) {
   });
   return {
     setMasks: (els) => grid_?.setMasks(els.filter(Boolean)),
-    refit: () => grid && (fadeTo = fadeMap(grid)),
+    refit,
   };
 }

@@ -602,7 +602,6 @@ export const SCENES = {
     const clients = row(-2.9, 2, 1.2, "clients"), bank = row(-0.9, 3, 1.0, "bank servers"), boney = row(1.9, 5, 0.66, "boney · paxos");
     boney.forEach((b, i) => { b.p[0] += Math.sin((i / 4) * Math.PI) * 0.6; b.b.position.set(...b.p); });
     bank.forEach((b, i) => k.label(`b${6 + i}`, [b.p[0], 0.38, b.p[2]], "small"));
-    k.label("2pc", [bank[0].p[0] + 0.45, 0, bank[0].p[2]], "right small usr");
     const ring = k.loop(k.circle(0.34, 40), USR, 0.95); ring.position.y = -0.2;
     const bal = k.label("", null, "corner2");
     let slot = 0, primary = 0, balance = 0, seq = 0, suspect = -1;
