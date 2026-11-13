@@ -2,7 +2,7 @@
 // on internal links itself: it fetches the next page, swaps the page content in place and keeps the
 // background, the page links and the fonts as they are. The mesh does not restart between pages.
 // Each page sets <body data-page="…">; `PAGES` starts that page's script and stops it again on leave.
-import { startBgp } from "./bgp.js?v=20261121";
+import { startBgp } from "./bgp.js?v=20261122";
 
 const V = new URL(import.meta.url).searchParams.get("v") || "";
 // the background, the page links and the footer (badges, webring) stay through page swaps
@@ -67,6 +67,10 @@ async function go(url, push) {
   let next;
   try { next = await load(url.pathname); } catch { return (location.href = url.href); }
   const { doc } = next;
+  // a tab that has been open across a deploy runs the old app.js; the new page may need code it lacks,
+  // so when the versions differ, load the page in full instead of swapping it in
+  const theirs = doc.querySelector('script[src*="/assets/app.js"]')?.getAttribute("src");
+  if (!theirs || new URL(theirs, location.href).searchParams.get("v") !== V) return (location.href = url.href);
   const swap = () => {
     page.abort();
     for (const el of [...document.body.children]) if (!KEEP(el)) el.remove();

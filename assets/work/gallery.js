@@ -3,7 +3,7 @@
 // card's rectangle (viewport + scissor), clipped to the scrolling list. Off-screen cards are paused.
 // Returns { stop }; app.js calls it when the visitor leaves the page.
 import * as THREE from "../vendor/three.js?v=0187";
-import { SCENES, makeKit } from "./scenes.js?v=20261121";
+import { SCENES, makeKit } from "./scenes.js?v=20261122";
 
 export function startGallery({ canvas, root }) {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
