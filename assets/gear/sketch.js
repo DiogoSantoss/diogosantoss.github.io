@@ -6,8 +6,8 @@
 // flies the camera over to that group.
 // With `edit`, the "e" key opens a layout editor: drag the things on the desk around, turn them with
 // , and . and resize the desk. The layout is kept in localStorage; "copy" puts the values on the clipboard.
-import { GROUPS, ITEMS, DESK, setDesk } from "./scene.js?v=20261122";
-import { createView, worldBoxes } from "./engine.js?v=20261122";
+import { GROUPS, ITEMS, DESK, setDesk } from "./scene.js?v=20261123";
+import { createView, worldBoxes } from "./engine.js?v=20261123";
 
 const INK = (a) => `rgba(233,235,238,${a})`;
 const REQ = (a) => `rgba(108,182,255,${a})`;

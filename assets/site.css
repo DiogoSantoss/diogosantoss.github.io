@@ -81,9 +81,13 @@ li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
 
 /* chips: a name with its logo in pixel art, in a thin outline of the brand colour */
 .chip { display: inline-flex; align-items: center; gap: 0.45em; padding: 0 0.45em; border: 1px solid; border-radius: 3px; line-height: 1.4; white-space: nowrap; color: var(--ink); vertical-align: 0.05em; }
-.chip img { width: auto; height: 0.62em; image-rendering: pixelated; }
+.chip img { width: auto; image-rendering: pixelated; }
 .chip.cf { border-color: rgba(246, 130, 31, 0.55); background: rgba(246, 130, 31, 0.09); }
 .chip.ist { border-color: rgba(0, 157, 224, 0.6); background: rgba(0, 157, 224, 0.1); }
+.chip.dv { border-color: rgba(102, 122, 128, 0.8); background: rgba(102, 122, 128, 0.14); }
+.chip.inesc { border-color: rgba(159, 196, 24, 0.55); background: rgba(0, 89, 124, 0.2); }
+.chip.jungle { border-color: rgba(255, 204, 12, 0.6); background: rgba(255, 204, 12, 0.08); }
+.chip.spin { border-color: rgba(255, 108, 2, 0.55); background: rgba(20, 54, 101, 0.35); }
 
 /* work: a gallery of cards, each with a live 3D scene drawn by one shared renderer (#works) */
 #works { z-index: 3; pointer-events: none; }
@@ -93,10 +97,12 @@ li.hot .what, li.hot .what b, li.hot .when { color: var(--req); }
 .card { display: block; color: inherit; border: 1px solid rgba(233, 235, 238, 0.08); border-radius: 8px; background: rgba(11, 12, 14, 0.86); overflow: hidden; }
 a.card:hover, a.card:focus-visible { border-color: rgba(108, 182, 255, 0.45); color: inherit; }
 a.card:hover .what { color: var(--req); }
-.view { position: relative; aspect-ratio: 4 / 3; border-bottom: 1px solid rgba(233, 235, 238, 0.06); }
+.view { position: relative; aspect-ratio: 4 / 3; border-bottom: 1px solid rgba(233, 235, 238, 0.06); cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.view.turning { cursor: grabbing; }
 .view-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font-size: 10.5px; color: var(--dim); z-index: 4; }
 .view-labels span { position: absolute; left: 0; top: 0; white-space: nowrap; translate: -50% -50%; transition: opacity 0.3s; }
 .view-labels .corner { left: 12px; top: 10px; translate: none; transform: none !important; color: var(--mid); font-variant-numeric: tabular-nums; }
+.view-labels .corner2 { left: 12px; top: auto; bottom: 10px; translate: none; transform: none !important; color: var(--mid); font-variant-numeric: tabular-nums; }
 .view-labels .right { translate: 0 -50%; }
 .view-labels .usr { color: var(--usr); }
 .view-labels .add { color: var(--add); }

@@ -22,7 +22,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@l_Didas_l" />
     <link rel="preload" href="/assets/fonts/spline-sans-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/site.css?v=20261122" />
+    <link rel="stylesheet" href="/assets/site.css?v=20261123" />
   </head>
   <body data-page="work">
     <canvas id="bg" aria-hidden="true"></canvas>
@@ -39,58 +39,58 @@
       <div class="cards">
         <article class="card">
           <div class="view" data-scene="cloudflare"></div>
-          <div class="cap"><span class="when">2026 –</span><span class="what"><b>Systems Engineer</b> · <span class="chip cf"><img src="/assets/chips/cloudflare.svg" alt="" width="18" height="7" />Cloudflare</span></span><p>Email Routing and Email Sending. Mail lands at the nearest data centre, then goes on to its inbox.</p></div>
+          <div class="cap"><span class="when">2026 –</span><span class="what"><b>Systems Engineer</b> · <span class="chip cf"><img src="/assets/chips/cloudflare.svg" alt="" width="18" height="7" style="height: 0.62em" />Cloudflare</span></span><p>Email Routing and Email Sending. Mail lands at the nearest data centre, then goes on to its inbox.</p></div>
         </article>
         <article class="card">
           <div class="view" data-scene="dvlabs"></div>
-          <div class="cap"><span class="when">2024–26</span><span class="what"><b>Protocol Engineer</b> · DV Labs</span><p>Charon: one Ethereum validator run by a cluster. The nodes agree on each duty, and any three signature shares make the signature.</p></div>
+          <div class="cap"><span class="when">2024–26</span><span class="what"><b>Protocol Engineer</b> · <span class="chip dv"><img src="/assets/chips/dvlabs.svg" alt="" width="15" height="9" style="height: 0.79em" />DV Labs</span></span><p>Charon, the middleware of a distributed validator. Each operator runs a full Ethereum node stack with Charon between the validator client and the beacon node. Each validator client holds one key share, so no node has the whole key.</p></div>
         </article>
         <article class="card">
           <div class="view" data-scene="inesc"></div>
-          <div class="cap"><span class="when">2024</span><span class="what"><b>Researcher</b> · INESC-ID</span><p>Alea-BFT in Charon, in place of QBFT. No leader: agreement visits each node's queue in turn, so a crashed node only skips its turn.</p></div>
+          <div class="cap"><span class="when">2024</span><span class="what"><b>Researcher</b> · <span class="chip inesc"><img src="/assets/chips/inesc.svg" alt="" width="11" height="9" style="height: 0.79em" />INESC-ID</span></span><p>Alea-BFT, an asynchronous consensus protocol: no leader and no timeouts. Each node broadcasts into its own queue, and binary agreement visits the queues in turn, so all nodes deliver the same order. I implemented it in Charon, in place of QBFT.</p></div>
         </article>
         <article class="card">
           <div class="view" data-scene="dei"></div>
-          <div class="cap"><span class="when">2022–24</span><span class="what"><b>Full Stack Developer</b> · <span class="chip ist"><img src="/assets/chips/ist.svg" alt="" width="15" height="7" />DEI-IST</span></span><p>Thesis defence scheduling for the department: each defence gets a day, a slot and a room that its jury is free for.</p></div>
+          <div class="cap"><span class="when">2022–24</span><span class="what"><b>Full Stack Developer</b> · <span class="chip ist"><img src="/assets/chips/ist.svg" alt="" width="11" height="13" style="height: 1.14em" />DEI-IST</span></span><p>A page and backend where professors mark the hours they are free. Each thesis defence is booked where the whole jury overlaps.</p></div>
         </article>
         <article class="card">
           <div class="view" data-scene="jungle"></div>
-          <div class="cap"><span class="when">2023</span><span class="what"><b>Software Engineer Intern</b> · Jungle AI</span><p>Parallel data processing with Ray on Kubernetes: objects from S3 go through SQS, fan out to workers, and results go back to S3.</p></div>
+          <div class="cap"><span class="when">2023</span><span class="what"><b>Software Engineer Intern</b> · <span class="chip jungle"><img src="/assets/chips/jungle.svg" alt="" width="9" height="9" style="height: 0.79em" />Jungle AI</span></span><p>Parallel data processing with Ray on Kubernetes: objects from S3 go through SQS, fan out to workers, and results go back to S3.</p></div>
         </article>
         <article class="card">
           <div class="view" data-scene="spinworks"></div>
-          <div class="cap"><span class="when">2021</span><span class="what"><b>Front-End Intern</b> · Spin.Works</span><p>A map app for precision agriculture: farmers move across the terrain and manage each farming zone.</p></div>
+          <div class="cap"><span class="when">2021</span><span class="what"><b>Front-End Intern</b> · <span class="chip spin"><img src="/assets/chips/spinworks.svg" alt="" width="9" height="9" style="height: 0.79em" />Spin.Works</span></span><p>I built the map foundation of Mapp.it, their precision-agriculture app: map tiles and parcels, with layers like plant-level NDVI, vine gaps and management zones.</p></div>
         </article>
       </div>
       <h2>projects</h2>
       <div class="cards">
-        <a class="card" href="https://github.com/DiogoSantoss/consistent-hashing">
+        <a class="card" href="https://github.com/DiogoSantoss/consistent-hashing" draggable="false">
           <div class="view" data-scene="ring"></div>
           <div class="cap"><span class="when">ring</span><span class="what">consistent hashing on an AVL tree ↗</span><p>Servers own arcs of the ring. Add one, and only its share of the keys moves.</p></div>
         </a>
-        <a class="card" href="https://github.com/DiogoSantoss/gmail-alias-sender">
+        <a class="card" href="https://github.com/DiogoSantoss/gmail-alias-sender" draggable="false">
           <div class="view" data-scene="mail"></div>
           <div class="cap"><span class="when">mail</span><span class="what">reply from your own domain in Gmail ↗</span><p>Mail comes in through Email Routing. The reply goes out through the Email Sending API, from your domain.</p></div>
         </a>
-        <a class="card" href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft">
+        <a class="card" href="https://github.com/DiogoSantoss/permissioned-blockchain-qbft" draggable="false">
           <div class="view" data-scene="qbft"></div>
-          <div class="cap"><span class="when">qbft</span><span class="what">state machine replication with QBFT ↗</span><p>Pre-prepare, prepare, commit: then every node appends the same block.</p></div>
+          <div class="cap"><span class="when">qbft</span><span class="what">state machine replication with QBFT ↗</span><p>A permissioned blockchain. The leader proposes a block of three transfers; pre-prepare, prepare and commit (quorum 3 of 4) decide it. The leader only changes when it fails.</p></div>
         </a>
-        <a class="card" href="https://github.com/DiogoSantoss/fault-tolerant-bank">
+        <a class="card" href="https://github.com/DiogoSantoss/fault-tolerant-bank" draggable="false">
           <div class="view" data-scene="paxos"></div>
-          <div class="cap"><span class="when">paxos</span><span class="what">fault-tolerant bank on multi-paxos ↗</span><p>Every operation is accepted in a log slot before the balance changes. If the leader fails, another one takes over.</p></div>
+          <div class="cap"><span class="when">paxos</span><span class="what">fault-tolerant bank on multi-paxos ↗</span><p>Each time slot, Paxos among the Boney servers elects the primary bank server. The primary orders deposits and withdrawals with tentative and commit.</p></div>
         </a>
-        <a class="card" href="https://github.com/DiogoSantoss/nvolopi">
+        <a class="card" href="https://github.com/DiogoSantoss/nvolopi" draggable="false">
           <div class="view" data-scene="gke"></div>
-          <div class="cap"><span class="when">gke</span><span class="what">microservices on GKE ↗</span><p>When traffic goes up, the autoscaler adds pods. When it goes down, it removes them.</p></div>
+          <div class="cap"><span class="when">gke</span><span class="what">file sharing on GKE ↗</span><p>Sign in for a JWT, upload a file, share its ID. Only the users you shared it with can download it. Under load, the autoscaler adds upload pods.</p></div>
         </a>
-        <a class="card" href="https://github.com/DiogoSantoss/cloud-computing-virtualization">
+        <a class="card" href="https://github.com/DiogoSantoss/cloud-computing-virtualization" draggable="false">
           <div class="view" data-scene="aws"></div>
-          <div class="cap"><span class="when">aws</span><span class="what">instrumenting Java apps on AWS ↗</span><p>Each request is priced by its instruction count and sent to the least-loaded worker. The fleet scales with the load.</p></div>
+          <div class="cap"><span class="when">aws</span><span class="what">instrumenting Java apps on AWS ↗</span><p>Javassist counts each request's instructions. The load balancer uses them to send work to the least-loaded worker, or to Lambda when the workers are full.</p></div>
         </a>
-        <a class="card" href="https://github.com/DiogoSantoss/2fa-stock-broker">
+        <a class="card" href="https://github.com/DiogoSantoss/2fa-stock-broker" draggable="false">
           <div class="view" data-scene="2fa"></div>
-          <div class="cap"><span class="when">2fa</span><span class="what">secure broker with JWT and 2FA ↗</span><p>Password, then a time-based code, then a signed token that the broker accepts.</p></div>
+          <div class="cap"><span class="when">2fa</span><span class="what">secure broker with JWT and 2FA ↗</span><p>Login with a password and a TOTP code. The server issues a 10-minute JWT for the API, and a refresh cookie gets a new one when it expires.</p></div>
         </a>
       </div>
     </main>
@@ -129,6 +129,6 @@
       </div>
     </aside>
     <footer class="webring" id="webring" aria-label="webring"></footer>
-    <script type="module" src="/assets/app.js?v=20261122"></script>
+    <script type="module" src="/assets/app.js?v=20261123"></script>
   </body>
 </html>

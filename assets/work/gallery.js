@@ -3,7 +3,7 @@
 // card's rectangle (viewport + scissor), clipped to the scrolling list. Off-screen cards are paused.
 // Returns { stop }; app.js calls it when the visitor leaves the page.
 import * as THREE from "../vendor/three.js?v=0187";
-import { SCENES, makeKit } from "./scenes.js?v=20261122";
+import { SCENES, makeKit } from "./scenes.js?v=20261123";
 
 export function startGallery({ canvas, root }) {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -21,6 +21,33 @@ export function startGallery({ canvas, root }) {
     for (let t = 0; t < (reduce ? 6 : 1.5); t += 1 / 30) k.tick(1 / 30);
     return { el, k };
   });
+
+  // drag a card's scene to turn it; on a project card a drag must not also open the link
+  const ac = new AbortController();
+  for (const { el, k } of views) {
+    let at = null;
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button) return;
+      e.preventDefault();
+      at = { x: e.clientX, y: e.clientY, moved: false };
+      k.drag.on = true; k.drag.vel = 0;
+      el.setPointerCapture(e.pointerId); el.classList.add("turning");
+    }, { signal: ac.signal });
+    el.addEventListener("pointermove", (e) => {
+      if (!at) return;
+      const dx = e.clientX - at.x, dy = e.clientY - at.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) at.moved = true;
+      k.drag.yaw -= dx * 0.4; k.drag.pitch += dy * 0.3; k.drag.vel = -dx * 0.4;
+      at.x = e.clientX; at.y = e.clientY;
+    }, { signal: ac.signal });
+    const end = () => {
+      if (!at) return;
+      if (at.moved) el.closest("a")?.addEventListener("click", (e) => e.preventDefault(), { capture: true, once: true });
+      at = null; k.drag.on = false; el.classList.remove("turning");
+    };
+    el.addEventListener("pointerup", end, { signal: ac.signal });
+    el.addEventListener("pointercancel", end, { signal: ac.signal });
+  }
 
   const v = new THREE.Vector3();
   let raf = 0, last = performance.now(), W = 0, H = 0;
@@ -60,6 +87,7 @@ export function startGallery({ canvas, root }) {
   return {
     stop() {
       cancelAnimationFrame(raf);
+      ac.abort();
       for (const { k } of views) k.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
