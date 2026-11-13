@@ -2,7 +2,7 @@
 // Each scene is a function that gets a kit (`k`) and builds into k.scene. It drives itself with
 // k.every / k.after / k.tween / k.frame and moves messages with k.comet. Nothing here touches the DOM
 // except through k.label; gallery.js owns the renderer, the camera aspect and the clock.
-import * as THREE from "../vendor/three.js?v=0187";
+import * as THREE from "../vendor/three.js?v=0187b";
 
 export const INK = 0xe9ebee, REQ = 0x6cb6ff, USR = 0xff9f43, ADD = 0x5ee38a, DEL = 0xff6b6b, VIO = 0xba94ff, CF = 0xf6821f;
 const TAU = Math.PI * 2;
@@ -133,51 +133,107 @@ const envelope = (k, c) => {
 };
 
 export const SCENES = {
-  // the MTA, as a closed box with its entry points: relay on port 25 from other mail servers, and three ways
-  // to send: SMTP submission on port 465, the REST API and the Workers binding. Everything leaves on port 25 to any MX
+  // the MTA, a closed box, and its four entry points drawn as what they are: another MTA relays over SMTP (25),
+  // a laptop's mail app submits over TLS (465), a terminal calls the REST API, and a Worker uses its binding.
+  // The mail leaves for any provider's MX; each mailbox raises its flag when mail lands
   cloudflare(k) {
-    const W = 1.6, H = 2.3, FX = W / 2;
-    k.solid(W, H, 1.0, 0x0b0c0e, 0.96);
-    const edge = k.box(W, H, 1.0, CF, 0.9);
-    k.label("mta", [0, H / 2 + 0.2, 0], "small");
-    const port = (x, y, name, cls) => {
-      // a socket sticking out of the side, so it reads from the front
-      const out = x < 0 ? -0.15 : 0.15, g = k.box(0.3, 0.22, 0.34, CF, 0.95);
-      g.position.set(x + out, y, 0);
-      // its name sits on the box, beside the socket
-      k.label(name, [x - out * 0.9, y, 0.5], `${x < 0 ? "right" : "left"} small ${cls}`);
-      return { p: [x + out * 2, y, 0], g };
-    };
-    const node = (p, name, c) => { const b = k.box(0.3, 0.3, 0.3, c, c === INK ? 0.6 : 0.85); b.position.set(...p); k.label(name, [p[0] - 0.24, p[1], 0], `left small ${c === INK ? "" : "usr"}`); return { p, b, c }; };
-    const IN = [["25 relay", "servers", INK, 0.45], ["465 submission", "smtp client", USR, 0.2], ["api", "app", USR, 0.17], ["binding", "worker", USR, 0.18]].map(([pn, sn, c, w], i) => {
-      const y = 0.84 - i * 0.56;
-      return { port: port(-FX, y, pn, c === INK ? "" : "usr"), src: node([-1.9, y, 0], sn, c), c, w };
+    const tint = (l, c) => ((l.el.style.color = "#" + c.toString(16).padStart(6, "0")), l);
+    const rect = (x0, y0, x1, y1, c, o, p) => k.loop([[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]], c, o, p);
+    const at = (x, y) => { const g = k.group(); g.position.set(x, y, 0); return g; };
+    const X = -2.05;
+    // relay: a rack server with blinking lights, another MTA
+    const srv = at(X, 1.15), leds = [];
+    rect(-0.32, -0.22, 0.32, 0.22, INK, 0.7, srv);
+    for (const y of [-0.08, 0.08]) k.segs([[-0.32, y, 0], [0.32, y, 0]], INK, 0.35, srv);
+    for (let i = 0; i < 3; i++) { const d = k.dot(0.025, ADD, srv, 0.9); d.position.set(0.22, -0.15 + i * 0.155, 0.01); leds.push(d); }
+    for (let i = 0; i < 3; i++) k.segs([[-0.24, -0.15 + i * 0.155, 0], [0.05, -0.15 + i * 0.155, 0]], INK, 0.25, srv);
+    k.label("mx.other.org", [X, 0.8, 0], "small");
+    k.frame((dt, now) => leds.forEach((d, i) => (d.visible = Math.sin(now * (5 + i * 2.3) + i) > -0.3)));
+    // submission: a laptop running a mail app, with a padlock for TLS
+    const lap = at(X, 0.42);
+    rect(-0.27, -0.06, 0.27, 0.28, INK, 0.7, lap);
+    k.line([[-0.36, -0.14, 0], [0.36, -0.14, 0], [0.27, -0.06, 0], [-0.27, -0.06, 0], [-0.36, -0.14, 0]], INK, 0.6, lap);
+    const icon = envelope(k, REQ); icon.scale.setScalar(0.42); icon.position.set(0, 0.11, 0.01); lap.add(icon);
+    const lock = at(X + 0.5, 0.42), lockBody = rect(-0.06, -0.05, 0.06, 0.04, REQ, 0.9, lock);
+    k.line([...Array(9).keys()].map((i) => { const a = (Math.PI * i) / 8; return [Math.cos(a) * 0.04, 0.04 + Math.sin(a) * 0.045, 0]; }), REQ, 0.9, lock);
+    k.label("mail app · 465", [X, 0.1, 0], "small");
+    // rest api: a terminal that types a request and prints the answer
+    const term = at(X, -0.42);
+    rect(-0.75, -0.27, 0.75, 0.27, INK, 0.7, term);
+    k.segs([[-0.75, 0.17, 0], [0.75, 0.17, 0]], INK, 0.35, term);
+    [0xff6b6b, 0xffd166, ADD].forEach((c, i) => { const d = k.dot(0.022, c, term, 0.9); d.position.set(-0.67 + i * 0.07, 0.22, 0.01); });
+    // the text is drawn on the terminal's screen, so it turns with the terminal
+    const cv = Object.assign(document.createElement("canvas"), { width: 576, height: 160 }), cx = cv.getContext("2d");
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = "srgb";
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 0.4), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+    screen.position.set(0, -0.05, 0.01); term.add(screen);
+    const tty = { set(t) {
+      cx.clearRect(0, 0, cv.width, cv.height);
+      cx.font = '500 40px "Spline Sans Mono", ui-monospace, monospace'; cx.fillStyle = "#e9ebee";
+      t.split("\n").forEach((line, i) => cx.fillText(line, 16, 46 + i * 50));
+      tex.needsUpdate = true;
+    } };
+    // binding: a Worker, a hexagon with its code beside it
+    const wk = at(X, -1.2);
+    const hex = k.loop([...Array(6).keys()].map((i) => { const a = (i / 6) * TAU + Math.PI / 6; return [Math.cos(a) * 0.22, Math.sin(a) * 0.22, 0]; }), CF, 0.95, wk);
+    k.segs([[-0.08, 0.08, 0], [-0.13, 0, 0], [-0.13, 0, 0], [-0.08, -0.08, 0], [0.08, 0.08, 0], [0.13, 0, 0], [0.13, 0, 0], [0.08, -0.08, 0], [0.03, 0.1, 0], [-0.03, -0.1, 0]], CF, 0.95, wk);
+    const code = tint(k.label("env.EMAIL.send(msg)", [X, -1.5, 0], "small"), CF);
+    // the MTA, and the mailboxes
+    k.solid(0.9, 2.5, 0.8, 0x0b0c0e, 0.96);
+    const edge = k.box(0.9, 2.5, 0.8, CF, 0.9);
+    k.label("cloudflare mta", [0, 1.45, 0], "small");
+    const boxes = ["gmail.com", "outlook.com", "icloud.com"].map((n, i) => {
+      const g = at(2.2, 0.95 - i * 0.95), c = INK;
+      k.line([[-0.2, 0, 0], [-0.2, 0.14, 0], ...[...Array(13).keys()].map((j) => { const a = Math.PI - (Math.PI * j) / 12; return [Math.cos(a) * 0.2, 0.14 + Math.sin(a) * 0.12, 0]; }), [0.2, 0, 0], [-0.2, 0, 0]], c, 0.7, g);
+      k.segs([[0, 0, 0], [0, -0.32, 0], [-0.12, 0.08, 0.001], [0.06, 0.08, 0.001]], INK, 0.5, g);
+      const flag = k.group(g); flag.position.set(0.2, 0.06, 0);
+      k.line([[0, 0, 0], [0, 0.22, 0], [0.12, 0.22, 0], [0.12, 0.14, 0], [0, 0.14, 0]], DEL, 0.9, flag);
+      flag.rotation.z = -Math.PI / 2;
+      k.label(n, [2.2, g.position.y - 0.42, 0], "small");
+      return { g, flag, p: [2.0, g.position.y + 0.12, 0] };
     });
-    const OUT = port(FX, 0, "25", "");
-    const mxs = ["gmail.com", "outlook.com", "icloud.com", "proton.me"].map((n, i) => { const p = [2.05, 1.05 - i * 0.7, 0], b = k.box(0.3, 0.3, 0.3, INK, 0.6); b.position.set(...p); k.label(n, [2.05, p[1] - 0.27, 0], "small"); return { p, b, c: INK }; });
+    const raise = (b) => { k.tween(0.25, (e) => (b.flag.rotation.z = -Math.PI / 2 * (1 - e))); k.after(1.6, () => k.tween(0.3, (e) => (b.flag.rotation.z = (-Math.PI / 2) * e))); };
     const fly = (env, pts, dur, done) => k.tween(dur, (e) => env.position.set(...k.at(pts, ease(e))), done);
-    let queued = 0;
-    const deliver = (env) => {
-      // the mail waits in the box for a moment, then leaves through the outbound port
-      k.after(0.4 + queued * 0.15, () => {
-        queued = Math.max(0, queued - 1);
-        const to = mxs[Math.floor(k.rnd() * mxs.length)];
-        flash(k, OUT.g, ADD, CF, 0.25);
-        env.visible = true;
-        fly(env, k.arc(OUT.p, to.p, 0.25, 30), 0.8, () => { flash(k, to.b, ADD, to.c, 0.3); k.drop(env); });
+    const send = (from, color) => {
+      const env = envelope(k, color); env.scale.setScalar(0.4);
+      fly(env, k.arc(from, [-0.45, from[1] * 0.75, 0], 0.15, 30), 0.7, () => {
+        env.visible = false; flash(k, edge, color === INK ? ADD : color, CF, 0.2);
+        k.after(0.45, () => {
+          const b = boxes[Math.floor(k.rnd() * boxes.length)];
+          env.visible = true;
+          fly(env, k.arc([0.45, b.p[1] * 0.75, 0], b.p, 0.2, 30), 0.75, () => { k.drop(env); raise(b); });
+        });
       });
     };
-    k.every(0.7, () => {
-      let r = k.rnd(), e = IN[0];
-      for (const x of IN) { if (r < x.w) { e = x; break; } r -= x.w; }
-      const env = envelope(k, e.c); env.scale.setScalar(0.42);
-      fly(env, k.arc(e.src.p, e.port.p, 0.12, 30), 0.7, () => {
-        env.visible = false; queued++;
-        flash(k, e.port.g, ADD, CF, 0.25); flash(k, edge, e.c, CF, 0.15);
-        deliver(env);
+    // relay: the two MTAs talk before the mail goes
+    const say = [k.label("", [0, 0, 0], "small"), k.label("", [0, 0, 0], "small")];
+    say.forEach((l) => (l.on = false));
+    const relay = () => {
+      const lines = [["EHLO", "250"], ["MAIL FROM", "250"], ["RCPT TO", "250"], ["DATA", "354"]];
+      lines.forEach(([c, r], i) => k.after(i * 0.4, () => {
+        say[0].set(c); say[0].pos.set(X + 0.75, 1.32, 0); say[0].on = true; say[0].el.style.color = "";
+        k.after(0.2, () => { say[1].set(r); say[1].pos.set(-0.75, 1.0, 0); say[1].on = true; tint(say[1], CF); });
+      }));
+      k.after(1.7, () => { say[0].on = say[1].on = false; send([X + 0.32, 1.15, 0], INK); });
+    };
+    const submit = () => { flash(k, lockBody, ADD, REQ, 0.5); flash(k, icon.children[0], ADD, REQ, 0.4); k.after(0.3, () => send([X + 0.5, 0.42, 0], REQ)); };
+    const api = () => {
+      const cmd = "$ curl -X POST \\\n    …/sending/send";
+      let n = 0;
+      k.tween(1.3, (e) => { const m = Math.floor(e * cmd.length); if (m !== n) { n = m; tty.set(cmd.slice(0, n) + "▍"); } }, () => {
+        tty.set(cmd);
+        send([X + 0.75, -0.42, 0], VIO);
+        k.after(1.0, () => tty.set(cmd + '\n{"success": true}'));
+        k.after(2.6, () => tty.set("▍"));
       });
-    });
-    k.orbit([-0.15, 0, 0], 7.4, 0, 8, 3);
+    };
+    const bind = () => { flash(k, hex, ADD, CF, 0.4); code.el.style.opacity = "1"; send([X + 0.22, -1.2, 0], CF); };
+    tty.set("▍");
+    k.every(4.6, relay, 0.4);
+    k.every(3.7, submit, 1.6);
+    k.every(5.3, api, 2.4);
+    k.every(2.9, bind, 0.9);
+    k.orbit([0, 0, 0], 7.6, 0, 4, 3);
   },
 
   // a distributed validator: four operators, each with a full node stack and Charon in its middle.
