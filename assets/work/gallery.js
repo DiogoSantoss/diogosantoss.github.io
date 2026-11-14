@@ -1,9 +1,10 @@
 // The work gallery: every card has a live 3D scene, but there is only one WebGL renderer. It covers
 // the window with one fixed canvas, and each frame draws every card that is on screen into that
 // card's rectangle (viewport + scissor), clipped to the scrolling list. Off-screen cards are paused.
-// Returns { stop }; app.js calls it when the visitor leaves the page.
+// A scene is built only when its card comes near the screen, one per task, so loading the page
+// never blocks the main thread for long. Returns { stop }; app.js calls it when the visitor leaves the page.
 import * as THREE from "../vendor/three.js?v=0187b";
-import { SCENES, makeKit } from "./scenes.js?v=20261133";
+import { SCENES, makeKit } from "./scenes.js?v=20261134";
 
 export function startGallery({ canvas, root }) {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -12,19 +13,42 @@ export function startGallery({ canvas, root }) {
   renderer.setScissorTest(true);
   renderer.autoClear = false;
 
-  const views = [...root.querySelectorAll("[data-scene]")].map((el, i) => {
+  const ac = new AbortController();
+  const views = [...root.querySelectorAll("[data-scene]")].map((el, i) => ({ el, i, k: null }));
+  const build = (view) => {
+    const { el, i } = view;
     const labels = Object.assign(document.createElement("div"), { className: "view-labels" });
     el.append(labels);
     const k = makeKit(labels, 7 + i * 31);
     SCENES[el.dataset.scene](k);
     // fill the queues and the trails before the first frame, so no card starts empty
     for (let t = 0; t < (reduce ? 6 : 1.5); t += 1 / 30) k.tick(1 / 30);
-    return { el, k };
-  });
+    turnable(el, k);
+    view.k = k;
+  };
+  const yieldToMain = () => (globalThis.scheduler?.yield ? scheduler.yield() : new Promise((done) => setTimeout(done, 0)));
+  const queue = [];
+  let pumping = false;
+  const pump = async () => {
+    if (pumping) return;
+    pumping = true;
+    while (queue.length && !ac.signal.aborted) { build(queue.shift()); await yieldToMain(); }
+    pumping = false;
+  };
+  const near = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      near.unobserve(e.target);
+      queue.push(views.find((v) => v.el === e.target));
+    }
+    queue.sort((a, b) => a.i - b.i);
+    pump();
+  }, { root, rootMargin: "400px 0px" });
+  for (const { el } of views) near.observe(el);
+  ac.signal.addEventListener("abort", () => near.disconnect());
 
   // drag a card's scene to turn it; on a project card a drag must not also open the link
-  const ac = new AbortController();
-  for (const { el, k } of views) {
+  function turnable(el, k) {
     let at = null;
     el.addEventListener("pointerdown", (e) => {
       if (e.button) return;
@@ -63,6 +87,7 @@ export function startGallery({ canvas, root }) {
     renderer.clear();
     const clip = root.getBoundingClientRect();
     for (const { el, k } of views) {
+      if (!k) continue;
       const r = el.getBoundingClientRect();
       const x0 = Math.max(r.left, clip.left), x1 = Math.min(r.right, clip.right), y0 = Math.max(r.top, clip.top), y1 = Math.min(r.bottom, clip.bottom);
       if (x1 <= x0 || y1 <= y0) continue;
@@ -88,7 +113,7 @@ export function startGallery({ canvas, root }) {
     stop() {
       cancelAnimationFrame(raf);
       ac.abort();
-      for (const { k } of views) k.dispose();
+      for (const { k } of views) k?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
     },
