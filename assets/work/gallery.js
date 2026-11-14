@@ -4,7 +4,7 @@
 // A scene is built only when its card comes near the screen, one per task, so loading the page
 // never blocks the main thread for long. Returns { stop }; app.js calls it when the visitor leaves the page.
 import * as THREE from "../vendor/three.js?v=0187b";
-import { SCENES, makeKit } from "./scenes.js?v=20261134";
+import { SCENES, makeKit } from "./scenes.js?v=20261135";
 
 export function startGallery({ canvas, root }) {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -44,7 +44,11 @@ export function startGallery({ canvas, root }) {
     queue.sort((a, b) => a.i - b.i);
     pump();
   }, { root, rootMargin: "400px 0px" });
-  for (const { el } of views) near.observe(el);
+  // the cards on screen at load are built now, so the first frame is not empty; the rest wait for the queue
+  for (const view of views) {
+    const r = view.el.getBoundingClientRect();
+    if (r.top < innerHeight && r.bottom > 0) build(view); else near.observe(view.el);
+  }
   ac.signal.addEventListener("abort", () => near.disconnect());
 
   // drag a card's scene to turn it; on a project card a drag must not also open the link
